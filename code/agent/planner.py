@@ -11,8 +11,6 @@ from prompt import (
     PLANNER_ITERATION_PROMPT_FULL_HISTORY,
     PLANNER_SYSTEM_PROMPT_ABLATION,
     PLANNER_ITERATION_PROMPT_ABLATION,
-    PLANNER_SYSTEM_PROMPT,
-    PLANNER_ITERATION_PROMPT
 )
 import config
 from structures import SubQuery, SubQueryState, ResearchMemory, PlannerOutput,PlannerOutputABLATION
