@@ -36,11 +36,20 @@ Given a research query, the workflow decomposes it into *subqueries*—specializ
 
 **Memory Mechanism.** Two structures maintain coherent state across iterations: the **subquery tree** organizes subqueries hierarchically, recording derivation paths and retrieved papers; the **experience buffer** compresses search history into a fixed-length summary, preventing context overflow while preserving key insights.
 
-## Benchmark
+## Benchmark & Dataset
 
-> **Coming Soon** — The benchmark dataset and pre-built indices will be released upon publication.
+ScholarGym is constructed from two established academic retrieval datasets: [PaSa](https://github.com/bytedance/pasa) and [LitSearch](https://github.com/princeton-nlp/LitSearch). The benchmark comprises two core components:
 
-ScholarGym is constructed from two established academic retrieval datasets: [PaSa](https://github.com/bytedance/pasa) and [LitSearch](https://github.com/princeton-nlp/LitSearch). The benchmark is partitioned into two evaluation subsets:
+### 📚 Dataset Components
+
+| Dataset | File | Description | Size |
+|---------|------|-------------|------|
+| **Query Benchmark** | `scholargym_bench.jsonl` | 2,536 expert-annotated research queries with ground-truth papers | ~1.3 MB |
+| **Paper Corpus** | `scholargym_paper_db.json` | 570K academic papers with arXiv metadata | ~860 MB |
+
+### 📊 Query Benchmark (`scholargym_bench.jsonl`)
+
+The query benchmark contains 2,536 research queries with expert-annotated ground-truth papers:
 
 | Subset | #Queries | Avg. #GT | Avg. Length |
 |--------|----------|----------|-------------|
@@ -51,7 +60,43 @@ ScholarGym is constructed from two established academic retrieval datasets: [PaS
 - **Test-Fast** — 200 queries sampled for balanced coverage across sources, enabling rapid iteration during development.
 - **Test-Hard** — 100 queries on which all evaluated models perform poorly; these queries tend to have larger ground-truth sets and require finding papers across multiple research areas.
 
-**Corpus:** 570K papers spanning computer science, physics, and mathematics, deduplicated by arXiv identifier and enriched with metadata via the arXiv API.
+**Query Sources:**
+- **PaSa-AutoScholar**: Generated from citation contexts
+- **PaSa-RealScholar**: Human-curated research questions
+- **LitSearch**: Real-world literature search scenarios
+
+**JSONL Format:**
+```json
+{
+  "query_id": "pasa_auto_001",
+  "query": "What methods exist for improving transformer efficiency through sparse attention?",
+  "gt_arxiv_ids": ["2101.03935", "2009.00031"],
+  "date_constraint": "2024-12-31",
+  "source": "pasa_auto",
+  "split": "test"
+}
+```
+
+### 📄 Paper Corpus (`scholargym_paper_db.json`)
+
+The paper corpus contains 570K academic papers spanning computer science, physics, and mathematics:
+
+- **Deduplicated** by arXiv identifier
+- **Enriched** with metadata via arXiv API
+- **Deterministic retrieval** for reproducible evaluation
+
+**JSON Format:**
+```json
+{
+  "arxiv_id": "2101.03935",
+  "title": "Sparse Attention Mechanisms for Efficient Transformers",
+  "abstract": "We propose novel sparse attention patterns...",
+  "authors": ["Author A", "Author B"],
+  "published": "2021-01-11",
+  "categories": ["cs.CL", "cs.LG"],
+  "url": "https://arxiv.org/abs/2101.03935"
+}
+```
 
 ## Evaluation Metrics
 
@@ -144,13 +189,29 @@ pip install -r requirements.txt
 
 ## Quick Start
 
-> **Note:** Dataset and pre-built indices are coming soon.
+### Download Dataset
+
+ScholarGym datasets are available on both HuggingFace and ModelScope:
+
+**HuggingFace**
+```python
+from datasets import load_dataset
+load_dataset('shenhao/ScholarGym')
+```
+
+**ModelScope**
+```python
+from modelscope.msdatasets import MsDataset
+MsDataset.load('shenhao23/ScholarGym')
+```
+
+### Run Evaluation
 
 ```bash
 # Evaluate with Deep Research workflow
 python code/eval.py \
-    --paper_db data/paper_db.json \
-    --benchmark_jsonl data/benchmark.jsonl \
+    --paper_db data/scholargym_paper_db.json \
+    --benchmark_jsonl data/scholargym_bench.jsonl \
     --bm25_path data/bm25_index.pkl \
     --workflow deep_research \
     --search_method bm25 \
@@ -181,10 +242,12 @@ ScholarGym/
 │   ├── simplerag.py             # Direct Query baseline
 │   ├── structures.py            # Data structures
 │   └── utils.py                 # Utilities
+├── data/                         # 📚 Dataset files
+│   ├── scholargym_bench.jsonl   # Query benchmark (2,536 queries)
+│   └── scholargym_paper_db.json # Paper corpus (570K papers)
 ├── fig/                          # Experimental figures (PNG)
-├── data/                         # Benchmark data (coming soon)
-├── requirements.txt
-└── README.md
+├── requirements.txt             # Python dependencies
+└── README.md                    # This file
 ```
 
 ## Citation
@@ -193,7 +256,7 @@ If you find ScholarGym useful for your research, please cite our paper:
 
 ```bibtex
 @article{shen2026scholargym,
-  title={ScholarGym: Benchmarking Deep Research Workflows on Academic Literature Retrieval},
+  title={ScholarGym: Benchmarking Large Language Model Capabilities in the Information-Gathering Stage of Deep Research},
   author={Shen, Hao and Yang, Hang and Gu, Zhouhong},
   journal={arXiv preprint arXiv:2601.21654},
   year={2026}

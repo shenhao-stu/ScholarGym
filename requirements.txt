@@ -1,0 +1,37 @@
+# ScholarGym: Benchmarking LLM Capabilities in Deep Research
+# Python Dependencies
+
+# Core dependencies
+numpy
+tqdm
+pandas
+
+# LLM API
+openai
+
+# Vector Search & Embeddings
+faiss-gpu
+sentence-transformers
+transformers
+torch
+accelerate
+
+# BM25 Retrieval
+rank-bm25
+
+# Qdrant Vector Database
+qdrant-client
+langchain-qdrant
+
+# LangChain & Embeddings
+langchain
+langchain-ollama
+
+# Text Processing
+nltk
+
+# Data handling
+jsonlines
+
+# Utilities
+python-dotenv
