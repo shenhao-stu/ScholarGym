@@ -4,7 +4,7 @@
   <a href="https://arxiv.org/abs/2601.21654"><img src="https://img.shields.io/badge/arXiv-2601.21654-b31b1b.svg" alt="arXiv"></a>
   <a href="https://huggingface.co/datasets/shenhao/ScholarGym"><img src="https://img.shields.io/badge/HuggingFace-Dataset-FFD21E.svg" alt="HuggingFace"></a>
   <a href="https://modelscope.cn/datasets/shenhao23/ScholarGym"><img src="https://img.shields.io/badge/ModelScope-Dataset-00A6FB.svg" alt="ModelScope"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"></a>
 </p>
 
 ## Abstract
