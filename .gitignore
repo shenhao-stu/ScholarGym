@@ -1,0 +1,7 @@
+log/
+faiss*
+secret.py
+.DS_Store
+__pycache__/
+eval*/
+scholargym_paper_db.json
