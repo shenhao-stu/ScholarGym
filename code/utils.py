@@ -534,7 +534,7 @@ class CheckpointManager:
             
             if workflow == 'deep_research':
                 self._rebuild_deep_research_stats(query_result, results, max_iterations)
-            else:  # simple workflow
+            else:
                 self._rebuild_simple_stats(query_result, results, top_k_list)
         
         return results
@@ -546,8 +546,8 @@ class CheckpointManager:
         max_iterations: int
     ):
         """Rebuild statistics for deep_research workflow."""
-        # Collect metrics by iteration
-        metric_names = ['recall', 'precision', 'retrieval_recall', 'retrieval_precision']
+        # Collect metrics by iteration — must match metric_names in eval.py evaluate_benchmark
+        metric_names = ['recall', 'precision', 'retrieval_recall', 'retrieval_precision', 'missed_gt_ratio']
         metrics_by_iter = {name: {} for name in metric_names}
         
         for res in query_result['iteration_results']:
