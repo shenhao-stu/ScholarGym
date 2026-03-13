@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>ScholarGym: Benchmarking Large Language Model Capabilities in the Information-Gathering Stage of Deep Research</title>
+  <meta name="title" content="ScholarGym: Benchmarking Large Language Model Capabilities in the Information-Gathering Stage of Deep Research">
+  <meta name="description" content="ScholarGym benchmarks LLM capabilities in deep research information gathering via Query Planning, Tool Invocation, and Relevance Assessment.">
+  <meta name="keywords" content="ScholarGym, deep research, large language models, information retrieval, benchmark, query planning">
+  <meta name="author" content="Hao Shen, Hang Yang, Zhouhong Gu, Weili Han">
+  <meta name="robots" content="index, follow">
+
+  <link rel="stylesheet" href="static/css/bulma.min.css">
+  <link rel="stylesheet" href="static/css/index.css">
+  <link rel="preload" href="static/css/fontawesome.all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <link rel="preload" href="static/css/academicons.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript>
+    <link rel="stylesheet" href="static/css/fontawesome.all.min.css">
+    <link rel="stylesheet" href="static/css/academicons.min.css">
+  </noscript>
+
+  <script defer src="static/js/index.js"></script>
+</head>
+<body>
+
+  <main id="main-content">
+    <section class="hero">
+      <div class="hero-body">
+        <div class="container is-max-desktop">
+          <div class="columns is-centered">
+            <div class="column has-text-centered">
+              <h1 class="title is-1 publication-title">ScholarGym: Benchmarking Large Language Model Capabilities in the Information-Gathering Stage of Deep Research</h1>
+
+              <div class="is-size-5 publication-authors">
+                <span class="author-block"><a href="https://github.com/shenhao-stu" target="_blank">Hao Shen</a></span>
+                <span class="author-block"><a href="https://github.com/nianyucatfish" target="_blank">Hang Yang</a></span>
+                <span class="author-block"><a href="https://github.com/MikeGu721" target="_blank">Zhouhong Gu</a></span>
+                <span class="author-block"><a href="https://faculty.fudan.edu.cn/weili/zh_CN/index.htm" target="_blank">Weili Han</a></span>
+              </div>
+              <div class="is-size-5 publication-authors">
+                <span class="author-block">Fudan University</span>
+              </div>
+
+              <div class="column has-text-centered">
+                <div class="publication-links">
+                  <span class="link-block">
+                    <a href="https://arxiv.org/pdf/2601.21654" class="external-link button is-normal is-rounded is-dark" target="_blank">
+                      <span class="icon"><i class="fas fa-file-pdf"></i></span>
+                      <span>Paper</span>
+                    </a>
+                  </span>
+
+                  <span class="link-block">
+                    <a href="https://arxiv.org/abs/2601.21654v3" class="external-link button is-normal is-rounded is-dark" target="_blank">
+                      <span class="icon"><i class="ai ai-arxiv"></i></span>
+                      <span>arXiv</span>
+                    </a>
+                  </span>
+
+                  <span class="link-block">
+                    <a href="https://github.com/shenhao-stu/ScholarGym/" class="external-link button is-normal is-rounded is-dark" target="_blank">
+                      <span class="icon"><i class="fab fa-github"></i></span>
+                      <span>GitHub</span>
+                    </a>
+                  </span>
+
+                  <span class="link-block">
+                    <a href="https://huggingface.co/datasets/shenhao/ScholarGym" class="external-link button is-normal is-rounded is-dark" target="_blank">
+                      <span class="icon platform-emoji" aria-hidden="true">🤗</span>
+                      <span>Hugging Face</span>
+                    </a>
+                  </span>
+
+                  <span class="link-block">
+                    <a href="https://modelscope.cn/datasets/shenhao23/ScholarGym" class="external-link button is-normal is-rounded is-dark" target="_blank">
+                      <span class="icon"><img src="static/images/icon_modelscope.svg" alt="ModelScope" class="platform-icon modelscope-icon"></span>
+                      <span>ModelScope</span>
+                    </a>
+                  </span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="hero teaser">
+      <div class="container is-max-desktop">
+        <div class="hero-body">
+          <img src="./static/images/scholargym_fig1.png" alt="ScholarGym framework overview teaser" style="width: 100%; border-radius: 10px;"/>
+          <h2 class="subtitle has-text-centered" style="margin-top: 1rem;">
+            ScholarGym decomposes deep research into Query Planning, Tool Invocation, and Relevance Assessment.
+          </h2>
+        </div>
+      </div>
+    </section>
+
+    <section class="section hero is-light">
+      <div class="container is-max-desktop">
+        <div class="columns is-centered has-text-centered">
+          <div class="column is-four-fifths">
+            <h2 class="title is-3">Abstract</h2>
+            <div class="content has-text-justified">
+              <p>
+                Large language models have advanced from single-turn question answering to deep research systems that iteratively decompose research questions, invoke retrieval tools, and synthesize information across multiple rounds. Evaluating such systems typically involves scoring their final research reports holistically, but this end-to-end paradigm tightly couples the language model’s decision-making, workflow design, and environmental feedback, precluding decomposable analysis of individual components.
+              </p>
+              <p>
+                We introduce <b>ScholarGym</b>, an evaluation environment that isolates the information-gathering stage of deep research on academic literature. Under a unified workflow, ScholarGym decomposes the research process into three explicit stages—Query Planning, Tool Invocation, and Relevance Assessment—and evaluates each against 2,536 expert-annotated queries over a static corpus of 570K papers with deterministic retrieval. Systematic experiments reveal that iterative query decomposition yields 2.9–3.3× F1 gains over single-query retrieval, models with extended thinking trade recall for precision, and Query Planning quality together with Relevance Assessment constitute dual bottlenecks that separate proprietary from open-source model performance.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container is-max-desktop">
+        <h2 class="title is-3 has-text-left">Deep Research Workflow</h2>
+        <div class="content has-text-justified">
+          <p>
+            ScholarGym evaluates the information-gathering stage through an iterative loop with three explicit stages. In <b>Query Planning</b>, the agent proposes and refines subqueries using actions such as <i>Derive</i>, <i>Expand</i>, and <i>Continue</i>. In <b>Tool Invocation</b>, each subquery is executed with either BM25 sparse retrieval or dense retrieval (Qwen3-Embedding-0.6B + Qdrant) over a static literature corpus. In <b>Relevance Assessment</b>, the model filters candidates through abstract-only screening or adaptive browsing.
+          </p>
+          <p>
+            To support long-horizon reasoning, the workflow maintains a <b>subquery tree</b> for query lineage and an <b>experience buffer</b> for compressed progress memory across iterations.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section has-background-light">
+      <div class="container is-max-desktop">
+        <h2 class="title is-3 has-text-left">Benchmark & Dataset</h2>
+        <div class="content has-text-justified">
+          <p>ScholarGym is built from PaSa and LitSearch with two released components:</p>
+          <ul>
+            <li><b>scholargym_bench.jsonl</b>: 2,536 expert-annotated research queries</li>
+            <li><b>scholargym_paper_db.json</b>: 570K-paper static corpus with deterministic retrieval</li>
+          </ul>
+        </div>
+
+        <div class="table-container">
+          <table class="table is-fullwidth is-striped">
+            <thead>
+              <tr>
+                <th>Subset</th>
+                <th>#Queries</th>
+                <th>Avg. #GT</th>
+                <th>Avg. Length</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Test-Fast</td>
+                <td>200</td>
+                <td>1.9</td>
+                <td>113.0</td>
+              </tr>
+              <tr>
+                <td>Test-Hard</td>
+                <td>100</td>
+                <td>2.6</td>
+                <td>101.8</td>
+              </tr>
+              <tr>
+                <td>ALL</td>
+                <td>2,536</td>
+                <td>2.3</td>
+                <td>110.4</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container is-max-desktop">
+        <h2 class="title is-3 has-text-left">Evaluation Metrics</h2>
+        <div class="content has-text-justified">
+          <ul>
+            <li><b>Recall (R)</b>, <b>Precision (P)</b>, and <b>F1</b> for final selected papers.</li>
+            <li><b>Ret.R</b> and <b>Ret.P</b> for retrieval quality before relevance filtering.</li>
+            <li><b>Avg.Distance</b> to evaluate query planning quality (how early ground-truth papers appear).</li>
+            <li><b>GT Discard Rate</b> to measure mistaken removal of ground-truth papers during filtering.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section hero is-light">
+      <div class="container is-max-desktop">
+        <h2 class="title is-3 has-text-left">Main Results</h2>
+
+        <div class="table-container" style="margin-bottom: 2rem;">
+          <table class="table is-fullwidth is-striped is-hoverable">
+            <thead>
+              <tr>
+                <th>Model</th>
+                <th>R</th>
+                <th>P</th>
+                <th>F1</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>Qwen3-8B (Direct)</td><td>0.185</td><td>0.042</td><td>0.069</td></tr>
+              <tr><td>Qwen3-30B (Direct)</td><td>0.312</td><td>0.058</td><td>0.098</td></tr>
+              <tr><td>Qwen3-8B</td><td>0.483</td><td>0.152</td><td>0.231</td></tr>
+              <tr><td>Qwen3-30B</td><td>0.673</td><td>0.181</td><td>0.285</td></tr>
+              <tr><td>Qwen3-30B†</td><td>0.482</td><td>0.290</td><td>0.362</td></tr>
+              <tr><td>GLM-4.7</td><td>0.754</td><td>0.111</td><td>0.194</td></tr>
+              <tr><td>DeepSeek-V3.2</td><td>0.855</td><td>0.135</td><td>0.233</td></tr>
+              <tr><td>DeepSeek-V3.2†</td><td>0.812</td><td>0.287</td><td>0.423</td></tr>
+              <tr><td>GPT-5.2</td><td>0.837</td><td><b>0.305</b></td><td><b>0.447</b></td></tr>
+              <tr><td>Gemini3-Pro</td><td><b>0.950</b></td><td>0.199</td><td>0.329</td></tr>
+            </tbody>
+          </table>
+          <p class="has-text-grey">† indicates extended thinking mode.</p>
+        </div>
+
+        <div class="columns">
+          <div class="column">
+            <figure>
+              <img src="static/images/scholargym_fig2.png" alt="Recall trajectories over 25 iterations" style="width: 100%; border-radius: 8px;"/>
+              <figcaption class="has-text-grey" style="margin-top: 0.6rem;"><b>Figure 2.</b> Recall trajectories over 25 iterations.</figcaption>
+            </figure>
+          </div>
+          <div class="column">
+            <figure>
+              <img src="static/images/scholargym_fig3.png" alt="Per-iteration GT discard rate" style="width: 100%; border-radius: 8px;"/>
+              <figcaption class="has-text-grey" style="margin-top: 0.6rem;"><b>Figure 3.</b> GT discard rates during relevance assessment.</figcaption>
+            </figure>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container is-max-desktop">
+        <h2 class="title is-3 has-text-left">Key Findings</h2>
+        <div class="content has-text-justified">
+          <p>
+            The study shows that iterative query planning substantially outperforms direct-query baselines, yielding roughly <b>2.9–3.3×</b> gains in F1. It also reveals a recurring trade-off in extended thinking mode, which often improves precision while reducing recall. Across model families, <b>Query Planning</b> and <b>Relevance Assessment</b> emerge as dual bottlenecks, and the memory mechanism is consistently beneficial: ablating memory can reduce F1 by around 6–22% depending on model and setup.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section has-background-light">
+      <div class="container is-max-desktop">
+        <h2 class="title is-3 has-text-left">Quick Use</h2>
+        <div class="content has-text-justified">
+<pre><code># Clone
+git clone https://github.com/shenhao-stu/ScholarGym.git
+cd ScholarGym
+
+# Create env
+conda create -n scholargym python=3.10
+conda activate scholargym
+pip install -r requirements.txt</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="BibTeX">
+      <div class="container is-max-desktop content">
+        <div class="bibtex-header">
+          <h2 class="title">BibTeX</h2>
+          <button class="copy-bibtex-btn" onclick="copyBibTeX()" title="Copy BibTeX to clipboard">
+            <i class="fas fa-copy"></i>
+            <span class="copy-text">Copy</span>
+          </button>
+        </div>
+<pre id="bibtex-code"><code>@misc{shen2026scholargymbenchmarkinglargelanguage,
+  title={ScholarGym: Benchmarking Large Language Model Capabilities in the Information-Gathering Stage of Deep Research},
+  author={Hao Shen and Hang Yang and Zhouhong Gu and Weili Han},
+  year={2026},
+  eprint={2601.21654},
+  archivePrefix={arXiv},
+  primaryClass={cs.AI},
+  url={https://arxiv.org/abs/2601.21654}
+}</code></pre>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div class="container">
+        <div class="columns is-centered">
+          <div class="column is-8">
+            <div class="content">
+              <p>
+                This page was built using the <a href="https://github.com/eliahuhorwitz/Academic-project-page-template" target="_blank">Academic Project Page Template</a> which was adopted from the <a href="https://nerfies.github.io" target="_blank">Nerfies</a> project page.
+                You are free to borrow the source code of this website, we just ask that you link back to this page in the footer. <br>
+                This website is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-sa/4.0/" target="_blank">Creative Commons Attribution-ShareAlike 4.0 International License</a>.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </footer>
+  </main>
+
+</body>
+</html>
