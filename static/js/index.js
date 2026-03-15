@@ -41,17 +41,25 @@ function copyBibTeX() {
     const bibtexElement = document.getElementById('bibtex-code');
     const button = document.querySelector('.copy-bibtex-btn');
     const copyText = button.querySelector('.copy-text');
-    
+    const copyIcon = button.querySelector('i');
+
+    function showCopiedState() {
+        button.classList.add('copied');
+        copyText.textContent = 'Copied!';
+        copyIcon.classList.remove('far', 'fa-copy');
+        copyIcon.classList.add('fas', 'fa-check');
+
+        setTimeout(function() {
+            button.classList.remove('copied');
+            copyText.textContent = 'Copy';
+            copyIcon.classList.remove('fas', 'fa-check');
+            copyIcon.classList.add('far', 'fa-copy');
+        }, 2000);
+    }
+
     if (bibtexElement) {
         navigator.clipboard.writeText(bibtexElement.textContent).then(function() {
-            // Success feedback
-            button.classList.add('copied');
-            copyText.textContent = 'Cop';
-            
-            setTimeout(function() {
-                button.classList.remove('copied');
-                copyText.textContent = 'Copy';
-            }, 2000);
+            showCopiedState();
         }).catch(function(err) {
             console.error('Failed to copy: ', err);
             // Fallback for older browsers
@@ -61,13 +69,8 @@ function copyBibTeX() {
             textArea.select();
             document.execCommand('copy');
             document.body.removeChild(textArea);
-            
-            button.classList.add('copied');
-            copyText.textContent = 'Cop';
-            setTimeout(function() {
-                button.classList.remove('copied');
-                copyText.textContent = 'Copy';
-            }, 2000);
+
+            showCopiedState();
         });
     }
 }

@@ -433,9 +433,6 @@ code {
   background: #10b981;
 }
 
-.copy-bibtex-btn.copied .copy-text::after {
-  content: "ied!";
-}
 
 /* Scroll to Top Button */
 .scroll-to-top {
