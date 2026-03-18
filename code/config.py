@@ -14,7 +14,11 @@ EVAL_BASE_DIR = 'eval_results'
 # --- Index Paths ---
 FAISS_PATH_PREFIX = 'data/faiss_index'
 BM25_PATH = 'data/bm25_index.pkl'
+QDRANT_PATH = 'data/qdrant_index'
 DEFAULT_SEARCH_METHOD = 'bm25'
+
+# --- Citation Data (used by rag.py standalone) ---
+CITED_DATA_DIR = 'data/cited_data'
 
 # --- Model Configurations ---
 EMBEDDING_MODEL_PATH = 'Qwen/Qwen3-Embedding-0.6B'

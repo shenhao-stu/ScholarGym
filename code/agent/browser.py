@@ -156,7 +156,7 @@ class Ar5ivParser:
                 elif child.name == 'cite':
                     hrefs = [a.get('href').strip('#') for a in child.find_all('a', class_='ltx_ref') if a.get('href')]
                     if hrefs:
-                        local_text.append('~\cite{' + ', '.join(hrefs) + '}')
+                        local_text.append('~\\cite{' + ', '.join(hrefs) + '}')
                 elif child.name == 'img' and child.has_attr('alt'):
                     math_txt = child.get('alt')
                     if len(math_txt) < self.max_math_length:

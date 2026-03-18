@@ -73,9 +73,29 @@ def _resolve_provider(model_name: str, is_local: bool) -> Dict[str, str]:
         if model_lower.startswith(prefix):
             return cfg
 
-    # Fallback: use OpenAI config
     logger.warning(f"No provider matched for model '{model_name}', falling back to OpenAI config.")
     return PROVIDER_CONFIG["gpt"]
+
+
+# Client cache to avoid creating a new connection per call
+_sync_client_cache: Dict[str, OpenAI] = {}
+_async_client_cache: Dict[str, AsyncOpenAI] = {}
+
+
+def _get_sync_client(provider: Dict[str, str]) -> OpenAI:
+    """Get or create a cached synchronous OpenAI client."""
+    key = f"{provider['api_key']}@{provider['base_url']}"
+    if key not in _sync_client_cache:
+        _sync_client_cache[key] = OpenAI(api_key=provider["api_key"], base_url=provider["base_url"])
+    return _sync_client_cache[key]
+
+
+def _get_async_client(provider: Dict[str, str]) -> AsyncOpenAI:
+    """Get or create a cached asynchronous OpenAI client."""
+    key = f"{provider['api_key']}@{provider['base_url']}"
+    if key not in _async_client_cache:
+        _async_client_cache[key] = AsyncOpenAI(api_key=provider["api_key"], base_url=provider["base_url"])
+    return _async_client_cache[key]
 
 
 def _build_messages(prompt: str) -> list:
@@ -117,7 +137,7 @@ def _call_llm(
         - Dict: Parsed structured output if return_structured.
     """
     provider = _resolve_provider(model, is_local)
-    client = OpenAI(api_key=provider["api_key"], base_url=provider["base_url"])
+    client = _get_sync_client(provider)
 
     messages = _build_messages(prompt)
 
@@ -130,7 +150,6 @@ def _call_llm(
         "stream": False,
     }
 
-    # Structured output via response_format
     if return_structured and response_format is not None:
         try:
             result = client.beta.chat.completions.parse(
@@ -140,7 +159,6 @@ def _call_llm(
             return parsed.model_dump() if hasattr(parsed, "model_dump") else parsed
         except Exception as e:
             logger.warning(f"Structured output failed, falling back to text: {e}")
-            # Fall through to normal text completion
 
     try:
         response = client.chat.completions.create(**kwargs)
@@ -151,7 +169,6 @@ def _call_llm(
     choice = response.choices[0]
     content = choice.message.content or ""
 
-    # Handle reasoning/thinking content if available
     if enable_thinking:
         reasoning = getattr(choice.message, "reasoning_content", None)
         if reasoning:
@@ -185,7 +202,7 @@ async def _call_llm_async(
         Same as _call_llm.
     """
     provider = _resolve_provider(model, is_local)
-    client = AsyncOpenAI(api_key=provider["api_key"], base_url=provider["base_url"])
+    client = _get_async_client(provider)
 
     messages = _build_messages(prompt)
 
@@ -198,7 +215,6 @@ async def _call_llm_async(
         "stream": False,
     }
 
-    # Structured output
     if return_structured and response_format is not None:
         try:
             result = await client.beta.chat.completions.parse(
