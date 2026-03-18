@@ -32,6 +32,18 @@ nltk
 
 # Data handling
 jsonlines
+datasets
+
+# Web Fetching & Parsing (Browser agent)
+httpx
+beautifulsoup4
+lxml
+
+# Benchmark Building
+arxiv
+
+# Evaluation (used by build.py)
+rouge
 
 # Utilities
 python-dotenv
