@@ -198,29 +198,32 @@ async def _call_llm_async(
         "stream": False,
     }
 
-    # Structured output
-    if return_structured and response_format is not None:
-        try:
-            result = await client.beta.chat.completions.parse(
-                **kwargs, response_format=response_format
-            )
-            parsed = result.choices[0].message.parsed
-            return parsed.model_dump() if hasattr(parsed, "model_dump") else parsed
-        except Exception as e:
-            logger.warning(f"Async structured output failed, falling back to text: {e}")
-
     try:
-        response = await client.chat.completions.create(**kwargs)
-    except Exception as e:
-        logger.error(f"Async LLM call failed: {e}")
-        raise
+        # Structured output
+        if return_structured and response_format is not None:
+            try:
+                result = await client.beta.chat.completions.parse(
+                    **kwargs, response_format=response_format
+                )
+                parsed = result.choices[0].message.parsed
+                return parsed.model_dump() if hasattr(parsed, "model_dump") else parsed
+            except Exception as e:
+                logger.warning(f"Async structured output failed, falling back to text: {e}")
 
-    choice = response.choices[0]
-    content = choice.message.content or ""
+        try:
+            response = await client.chat.completions.create(**kwargs)
+        except Exception as e:
+            logger.error(f"Async LLM call failed: {e}")
+            raise
 
-    if enable_thinking:
-        reasoning = getattr(choice.message, "reasoning_content", None)
-        if reasoning:
-            return reasoning, content
+        choice = response.choices[0]
+        content = choice.message.content or ""
 
-    return content
+        if enable_thinking:
+            reasoning = getattr(choice.message, "reasoning_content", None)
+            if reasoning:
+                return reasoning, content
+
+        return content
+    finally:
+        await client.close()

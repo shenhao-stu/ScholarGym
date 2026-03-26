@@ -6,3 +6,9 @@ __pycache__/
 eval*/
 scholargym_paper_db.json
 scripts/
+bm25_index.pkl
+EVAL*
+debug/
+data/scholargym_bench_short.jsonl
+code/config_debug.py
+.vscode/launch.json
