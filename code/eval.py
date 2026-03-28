@@ -1,51 +1,66 @@
 #!/usr/bin/env python3
 import os
+import sys
 import json
 import shutil
 import importlib.util
-from typing import List, Dict
+from typing import Any, List, Dict
 from tqdm import tqdm
 import numpy as np
 import datetime
 
 from logger import get_logger
-from rag import CitationRAGSystem
-import config
-from deeprag import DeepResearchWorkflow
-from simplerag import SimpleWorkflow
 from utils import extract_ground_truth_arxiv_ids, CheckpointManager, calculate_retrieval_metrics, AgentTraceRecorder
 
 logger = get_logger(__name__, log_file='./log/eval.log')
 
 def load_config_from_path(config_path: str):
     """
-    Dynamically load config from a file path.
-    
+    Dynamically load config from a file path and register it as the canonical config module.
+
     Args:
         config_path: Path to config.py file
-        
+
     Returns:
         Loaded config module
     """
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"Config file not found: {config_path}")
-    
-    spec = importlib.util.spec_from_file_location("config_custom", config_path)
+
+    spec = importlib.util.spec_from_file_location("config", config_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Unable to load config from: {config_path}")
+
     config_module = importlib.util.module_from_spec(spec)
+    sys.modules["config"] = config_module
     spec.loader.exec_module(config_module)
-    
+
     logger.info(f"[📝] Loaded config from: {config_path}")
     return config_module
 
+
+def get_config_module(config_path: str = None):
+    if config_path:
+        return load_config_from_path(config_path)
+
+    if "config" in sys.modules:
+        return sys.modules["config"]
+
+    import config
+    return config
+
+
 class CitationEvaluator:
-    def __init__(self, rag_system: CitationRAGSystem, llm_model: str = config.LLM_MODEL_NAME, 
-                 is_local: bool = config.IS_LOCAL_LLM, prompt_type: str = config.EVAL_PROMPT_TYPE, 
-                 search_method: str = config.EVAL_SEARCH_METHOD, trace_recorder=None):
+    def __init__(self, rag_system: Any, llm_model: str = None,
+                 is_local: bool = None, prompt_type: str = None,
+                 search_method: str = None, trace_recorder=None):
+        import config
+
         self.rag_system = rag_system
-        self.llm_model = llm_model
-        self.is_local = is_local
-        self.prompt_type = prompt_type
-        self.search_method = search_method
+        self.llm_model = llm_model if llm_model is not None else config.LLM_MODEL_NAME
+        self.is_local = is_local if is_local is not None else config.IS_LOCAL_LLM
+        self.prompt_type = prompt_type if prompt_type is not None else config.EVAL_PROMPT_TYPE
+        self.search_method = search_method if search_method is not None else config.EVAL_SEARCH_METHOD
         self.gen_params = config.LLM_GEN_PARAMS
         self.trace_recorder = trace_recorder
         
@@ -494,6 +509,8 @@ class CitationEvaluator:
 
     def append_summary_record(self, results: Dict, output_file: str, detailed_results_file: str):
         """Append a summary of the evaluation record to a file in JSONL format."""
+        import config
+
         record = {
             "model_name": self.llm_model,
             "prompt_type": results.get('prompt_type'),
@@ -545,7 +562,7 @@ class CitationEvaluator:
 def main():
     """Main evaluation pipeline."""
     import argparse
-    
+
     parser = argparse.ArgumentParser(description='Citation RAG Evaluation System')
     parser.add_argument('--config', type=str, default=None, help='Path to config.py file (if specified, overrides default config)')
     parser.add_argument('--paper_db', type=str, default=None, help='Path to paper database JSON file')
@@ -567,41 +584,39 @@ def main():
     parser.add_argument('--browser_mode', type=str, default=None, choices=['PRE_ENRICH', 'REFRESH', 'INCREMENTAL', 'NONE'], help='Browser mode for deep research workflow')
 
     args = parser.parse_args()
-    
-    # Load config from custom path if specified
-    cfg = config
-    config_path = None
-    if args.config:
-        config_path = args.config
-        cfg = load_config_from_path(config_path)
-    
-    # Use command-line args if provided, otherwise fall back to loaded config (cfg)
-    paper_db = args.paper_db or cfg.PAPER_DB_PATH
-    benchmark_jsonl = args.benchmark_jsonl or cfg.BENCHMARK_PATH
-    embedding_model = args.embedding_model or cfg.EMBEDDING_MODEL_PATH
-    llm_model = args.llm_model or cfg.LLM_MODEL_NAME
-    faiss_path = args.faiss_path or cfg.FAISS_PATH_PREFIX
-    bm25_path = args.bm25_path or cfg.BM25_PATH
-    output_dir = args.output_dir or cfg.EVAL_BASE_DIR
-    top_k = args.top_k or cfg.EVAL_TOP_K_VALUES
-    device = args.device or cfg.DEVICE
-    is_local = args.is_local if args.is_local is not None else cfg.IS_LOCAL_LLM  # bool needs explicit None check
-    prompt_type = args.prompt_type or cfg.EVAL_PROMPT_TYPE
-    search_method = args.search_method or cfg.EVAL_SEARCH_METHOD
-    workflow = args.workflow or cfg.EVAL_WORKFLOW
-    max_iterations = args.max_iterations or cfg.EVAL_MAX_ITERATIONS
-    results_per_query = args.results_per_query or cfg.MAX_RESULTS_PER_QUERY
-    browser_mode = args.browser_mode or cfg.BROWSER_MODE
 
-    # Use loaded config (cfg) for flags, not global config
-    reasoning_flag = 'reasoning' if cfg.ENABLE_REASONING else 'instruct'
-    structured_flag = 'structured' if cfg.ENABLE_STRUCTURED_OUTPUT else 'non-structured'
-    ablation_flag = '_ablation' if getattr(cfg, 'PLANNER_ABLATION', False) else ''
+    config = get_config_module(args.config)
+    logger.info(f"[📝] Active config module: {config.__file__}")
+
+    global CitationRAGSystem, DeepResearchWorkflow, SimpleWorkflow
+    from rag import CitationRAGSystem
+    from deeprag import DeepResearchWorkflow
+    from simplerag import SimpleWorkflow
+
+    paper_db = args.paper_db or config.PAPER_DB_PATH
+    benchmark_jsonl = args.benchmark_jsonl or config.BENCHMARK_PATH
+    embedding_model = args.embedding_model or config.EMBEDDING_MODEL_PATH
+    llm_model = args.llm_model or config.LLM_MODEL_NAME
+    faiss_path = args.faiss_path or config.FAISS_PATH_PREFIX
+    bm25_path = args.bm25_path or config.BM25_PATH
+    output_dir = args.output_dir or config.EVAL_BASE_DIR
+    top_k = args.top_k or config.EVAL_TOP_K_VALUES
+    device = args.device or config.DEVICE
+    is_local = args.is_local if args.is_local is not None else config.IS_LOCAL_LLM
+    prompt_type = args.prompt_type or config.EVAL_PROMPT_TYPE
+    search_method = args.search_method or config.EVAL_SEARCH_METHOD
+    workflow = args.workflow or config.EVAL_WORKFLOW
+    max_iterations = args.max_iterations or config.EVAL_MAX_ITERATIONS
+    results_per_query = args.results_per_query or config.MAX_RESULTS_PER_QUERY
+    browser_mode = args.browser_mode or config.BROWSER_MODE
+
+    reasoning_flag = 'reasoning' if config.ENABLE_REASONING else 'instruct'
+    structured_flag = 'structured' if config.ENABLE_STRUCTURED_OUTPUT else 'non-structured'
+    ablation_flag = '_ablation' if getattr(config, 'PLANNER_ABLATION', False) else ''
     model_name = llm_model.split('/')[-1] if '/' in llm_model else llm_model
     current_output_dir = os.path.join(output_dir, f"{model_name}_{prompt_type}_{search_method}_{workflow}_topk-{top_k}_maxq-{results_per_query}_{reasoning_flag}_{structured_flag}_{browser_mode}{ablation_flag}")
     os.makedirs(current_output_dir, exist_ok=True)
 
-    # Save config file for reproduction
     try:
         source_config = args.config if args.config else config.__file__
         if source_config:
@@ -620,17 +635,16 @@ def main():
         device=device,
         search_method=search_method
     )
-    
+
     rag_system.load_or_build_indices(
         paper_db_path=paper_db,
         faiss_path=faiss_path,
         bm25_path=bm25_path,
         rebuild=args.rebuild_index
     )
-    
-    # Initialize trace recorder if enabled
+
     trace_recorder = None
-    if cfg.SAVE_AGENT_TRACES:
+    if config.SAVE_AGENT_TRACES:
         trace_recorder = AgentTraceRecorder(
             output_dir=output_dir,
             model_name=llm_model,
@@ -639,8 +653,8 @@ def main():
             workflow=workflow,
             top_k=top_k,
             max_results=results_per_query,
-            enable_reasoning=cfg.ENABLE_REASONING,
-            enable_structured=cfg.ENABLE_STRUCTURED_OUTPUT
+            enable_reasoning=config.ENABLE_REASONING,
+            enable_structured=config.ENABLE_STRUCTURED_OUTPUT
         )
     
     logger.info("[🚀]Initializing evaluator...")

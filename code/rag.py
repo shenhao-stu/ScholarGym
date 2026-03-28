@@ -29,8 +29,8 @@ class CitationRAGSystem:
     RAG system for citation retrieval using FAISS vector storage and BM25 keyword search.
     Handles vector library construction and similarity-based paper retrieval.
     """
-    
-    def __init__(self, embedding_model_path: str = config.EMBEDDING_MODEL_PATH, device: str = config.DEVICE, search_method: str = config.DEFAULT_SEARCH_METHOD):
+
+    def __init__(self, embedding_model_path: Optional[str] = None, device: Optional[str] = None, search_method: Optional[str] = None):
         """
         Initialize the citation RAG system with embedding model.
         
@@ -38,9 +38,13 @@ class CitationRAGSystem:
             embedding_model_path: Path to the embedding model
             device: Device to run the model on ('cuda' or 'cpu')
         """
+        embedding_model_path = embedding_model_path or config.EMBEDDING_MODEL_PATH
+        device = device or config.DEVICE
+        search_method = search_method or config.DEFAULT_SEARCH_METHOD
+
         self.device = device
         self.embedding_model = SentenceTransformer(
-            embedding_model_path, 
+            embedding_model_path,
             trust_remote_code=True,
             device=device
         ) if search_method != 'bm25' else None
@@ -402,8 +406,8 @@ class CitationRAGSystem:
             logger.error(f"Unknown search method: {self.search_method}")
             return []
 
-    def search_citations_hybrid(self, query: str, top_k: int = config.HYBRID_SEARCH_TOP_K, 
-                               vector_weight: float = config.HYBRID_VECTOR_WEIGHT, bm25_weight: float = config.HYBRID_BM25_WEIGHT, before_date: Optional[str] = None, offset: int = 0) -> List[Tuple[str, float, Dict]]:
+    def search_citations_hybrid(self, query: str, top_k: Optional[int] = None,
+                               vector_weight: Optional[float] = None, bm25_weight: Optional[float] = None, before_date: Optional[str] = None, offset: int = 0) -> List[Tuple[str, float, Dict]]:
         """
         Hybrid search combining FAISS vector similarity and BM25 keyword matching.
         Fetches a larger pool of candidates from each search method and then reranks.
@@ -411,7 +415,11 @@ class CitationRAGSystem:
         """
         if self.faiss_index is None or self.bm25_index is None:
             raise ValueError("Both FAISS and BM25 indices must be loaded for hybrid search.")
-        
+
+        top_k = top_k if top_k is not None else config.HYBRID_SEARCH_TOP_K
+        vector_weight = vector_weight if vector_weight is not None else config.HYBRID_VECTOR_WEIGHT
+        bm25_weight = bm25_weight if bm25_weight is not None else config.HYBRID_BM25_WEIGHT
+
         # Fetch more candidates to allow offset and date filters
         candidate_pool_size = max(0, top_k + offset)
         candidate_pool_size = candidate_pool_size * 2 if candidate_pool_size > 0 else top_k * 2
@@ -457,12 +465,14 @@ class CitationRAGSystem:
         
         return results
 
-    def build_vector_library(self, paper_db: Dict[str, Dict], save_path: str, batch_size: int = config.EMBEDDING_BATCH_SIZE):
+    def build_vector_library(self, paper_db: Dict[str, Dict], save_path: str, batch_size: Optional[int] = None):
         """
         Build FAISS vector library from paper titles and abstracts.
         """
         if self.embedding_model is None:
             raise ValueError("Embedding model not loaded. Initialize with a vector-based search method.")
+
+        batch_size = batch_size if batch_size is not None else config.EMBEDDING_BATCH_SIZE
 
         logger.info("[🔨]Building FAISS index from titles and abstracts...")
         
@@ -560,7 +570,7 @@ class CitationRAGSystem:
     def search_citations(
         self,
         query: str,
-        top_k: int = config.VECTOR_SEARCH_TOP_K,
+        top_k: Optional[int] = None,
         offset: int = 0,
         before_date: Optional[str] = None,
         gt_arxiv_ids: Optional[Set[str]] = None,
@@ -574,7 +584,9 @@ class CitationRAGSystem:
             raise ValueError("FAISS index not loaded. Please load or build the index first.")
         if self.embedding_model is None:
             raise ValueError("Embedding model not loaded. Initialize with a vector-based search method.")
-        
+
+        top_k = top_k if top_k is not None else config.VECTOR_SEARCH_TOP_K
+
         # 编码查询向量
         query_embedding = self.embedding_model.encode([query], convert_to_numpy=True).astype('float32')
         faiss.normalize_L2(query_embedding)

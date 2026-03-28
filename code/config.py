@@ -4,11 +4,12 @@
 
 # --- Service Endpoints ---
 QDRANT_URL = "http://localhost:6433"
-OLLAMA_URL = "http://localhost:11434"
+OLLAMA_URL = "http://127.0.0.1:8001"
 
 # --- Data Paths ---
 PAPER_DB_PATH = 'data/scholargym_paper_db.json'
-BENCHMARK_PATH = 'data/scholargym_bench.jsonl'
+# BENCHMARK_PATH = 'data/scholargym_bench.jsonl'
+BENCHMARK_PATH = 'data/scholargym_bench_short.jsonl'
 EVAL_BASE_DIR = 'eval_results'
 
 # --- Index Paths ---
@@ -20,7 +21,7 @@ DEFAULT_SEARCH_METHOD = 'bm25'
 EMBEDDING_MODEL_PATH = 'Qwen/Qwen3-Embedding-0.6B'
 DEVICE = 'cuda:0'
 
-LLM_MODEL_NAME = 'qwen3:8b'
+LLM_MODEL_NAME = 'qwen3-8b'
 IS_LOCAL_LLM = True
 
 LLM_GEN_PARAMS = {
@@ -33,7 +34,7 @@ LLM_GEN_PARAMS = {
 BROWSER_MAX_TOKENS = 8192
 
 # --- LLM Advanced Features ---
-ENABLE_REASONING = True
+ENABLE_REASONING = False
 ENABLE_STRUCTURED_OUTPUT = False
 SAVE_AGENT_TRACES = False
 PLANNER_ABLATION = False
