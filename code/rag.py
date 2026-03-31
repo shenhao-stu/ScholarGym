@@ -111,17 +111,11 @@ class CitationRAGSystem:
     def _preprocess_text_for_bm25(self, text: str) -> List[str]:
         """
         Preprocess text for BM25 indexing by tokenizing and normalizing.
-        
-        Args:
-            text: Raw text to preprocess
-            
-        Returns:
-            List of tokens
+        Preserves alphanumeric tokens (e.g., "gpt4", "bert", "3d") which are
+        important for academic paper retrieval.
         """
-        # Convert to lowercase and remove special characters
         text = text.lower()
-        # Remove punctuation and split into tokens
-        tokens = re.findall(r'\b[a-z]+\b', text)
+        tokens = re.findall(r'\b[a-z0-9]+(?:-[a-z0-9]+)*\b', text)
         return tokens
     
     def build_bm25_index(self, paper_db: Dict[str, Dict], save_path: str):
@@ -402,60 +396,89 @@ class CitationRAGSystem:
             logger.error(f"Unknown search method: {self.search_method}")
             return []
 
-    def search_citations_hybrid(self, query: str, top_k: int = config.HYBRID_SEARCH_TOP_K, 
-                               vector_weight: float = config.HYBRID_VECTOR_WEIGHT, bm25_weight: float = config.HYBRID_BM25_WEIGHT, before_date: Optional[str] = None, offset: int = 0) -> List[Tuple[str, float, Dict]]:
+    def search_citations_hybrid(
+        self,
+        query: str,
+        top_k: int = config.HYBRID_SEARCH_TOP_K,
+        vector_weight: float = config.HYBRID_VECTOR_WEIGHT,
+        bm25_weight: float = config.HYBRID_BM25_WEIGHT,
+        before_date: Optional[str] = None,
+        offset: int = 0,
+        gt_arxiv_ids: Optional[Set[str]] = None,
+        debug: bool = True,
+        exclude_arxiv_ids: Optional[Set[str]] = None,
+    ) -> Tuple[List[Tuple[str, float, Dict]], Dict]:
         """
-        Hybrid search combining FAISS vector similarity and BM25 keyword matching.
-        Fetches a larger pool of candidates from each search method and then reranks.
-        Supports pagination via `offset`.
+        Hybrid search combining vector similarity and BM25 keyword matching.
+        Uses Qdrant (if available) or FAISS for vector search, combined with BM25.
+        Returns (results, rank_dict) for consistency with other search methods.
         """
-        if self.faiss_index is None or self.bm25_index is None:
-            raise ValueError("Both FAISS and BM25 indices must be loaded for hybrid search.")
-        
-        # Fetch more candidates to allow offset and date filters
+        has_vector = (self.qdrant_vector_store is not None) or (self.faiss_index is not None)
+        if not has_vector or self.bm25_index is None:
+            raise ValueError("Both vector index (Qdrant/FAISS) and BM25 index must be loaded for hybrid search.")
+
         candidate_pool_size = max(0, top_k + offset)
         candidate_pool_size = candidate_pool_size * 2 if candidate_pool_size > 0 else top_k * 2
-        
-        # Fetch candidates from both search methods
-        vector_results = self.search_citations(query, candidate_pool_size, offset=0, before_date=before_date)
-        bm25_results = self.search_citations_bm25(query, candidate_pool_size, offset=0, before_date=before_date)
-        
+
+        if self.qdrant_vector_store is not None:
+            vector_results, vector_rank_dict = self.search_citations_vector(
+                query, candidate_pool_size, offset=0, before_date=before_date,
+                gt_arxiv_ids=gt_arxiv_ids, debug=debug, exclude_arxiv_ids=exclude_arxiv_ids,
+            )
+        else:
+            vector_results, vector_rank_dict = self.search_citations(
+                query, candidate_pool_size, offset=0, before_date=before_date,
+                gt_arxiv_ids=gt_arxiv_ids, debug=debug,
+            )
+
+        bm25_results, bm25_rank_dict = self.search_citations_bm25(
+            query, candidate_pool_size, offset=0, before_date=before_date,
+            gt_arxiv_ids=gt_arxiv_ids, debug=debug, exclude_arxiv_ids=exclude_arxiv_ids,
+        )
+
         combined_scores = {}
         paper_info_map = {}
-        
-        # Normalize and combine vector scores
+
         if vector_results:
             vector_scores = [score for _, score, _ in vector_results]
             max_vector_score = max(vector_scores) if vector_scores else 1.0
-            
             for paper_id, score, paper_info in vector_results:
                 normalized_score = score / max_vector_score if max_vector_score > 0 else 0
                 combined_scores[paper_id] = vector_weight * normalized_score
                 paper_info_map[paper_id] = paper_info
-        
-        # Normalize and combine BM25 scores
+
         if bm25_results:
             bm25_scores = [score for _, score, _ in bm25_results]
             max_bm25_score = max(bm25_scores) if bm25_scores else 1.0
-            
             for paper_id, score, paper_info in bm25_results:
                 normalized_score = score / max_bm25_score if max_bm25_score > 0 else 0
-                
                 if paper_id in combined_scores:
                     combined_scores[paper_id] += bm25_weight * normalized_score
                 else:
                     combined_scores[paper_id] = bm25_weight * normalized_score
                     paper_info_map[paper_id] = paper_info
-        
-        # Sort by combined score and apply offset and top_k
+
         sorted_papers = sorted(combined_scores.items(), key=lambda x: x[1], reverse=True)
         sliced = sorted_papers[offset : offset + top_k]
-        
+
         results = []
         for paper_id, score in sliced:
             results.append((paper_id, score, paper_info_map[paper_id]))
-        
-        return results
+
+        # Merge rank_dicts: keep the better (lower) rank for each GT paper
+        rank_dict = {}
+        if debug and gt_arxiv_ids:
+            for arxiv_id in gt_arxiv_ids:
+                v_rank = vector_rank_dict.get(arxiv_id, {}).get("rank", config.TOTAL_PAPER_NUM)
+                b_rank = bm25_rank_dict.get(arxiv_id, {}).get("rank", config.TOTAL_PAPER_NUM)
+                best_rank = min(v_rank, b_rank)
+                total = max(
+                    vector_rank_dict.get(arxiv_id, {}).get("total", 0),
+                    bm25_rank_dict.get(arxiv_id, {}).get("total", 0),
+                )
+                rank_dict[arxiv_id] = {"rank": best_rank, "total": total}
+
+        return results, rank_dict
 
     def build_vector_library(self, paper_db: Dict[str, Dict], save_path: str, batch_size: int = config.EMBEDDING_BATCH_SIZE):
         """
@@ -606,30 +629,23 @@ class CitationRAGSystem:
         # 排序（FAISS 已经返回按相似度降序，但过滤后要保证顺序一致）
         sorted_results = sorted(unfiltered_results, key=lambda x: x[1], reverse=True)
 
-        # debug: rank_dict 部分
         rank_dict = {}
         if debug and gt_arxiv_ids:
             found_arxiv_ids = set()
-            total_len = len(sorted_results) + 1
+            total_rank = max(len(sorted_results) - 1, 0)
             for rank, (paper_id, similarity, paper_info) in enumerate(sorted_results):
                 arxiv_id = paper_info.get('arxiv_id')
                 if arxiv_id in gt_arxiv_ids:
                     found_arxiv_ids.add(arxiv_id)
-                    actual_rank = rank + 1
-                    if actual_rank > offset:
-                        rank_value = actual_rank - offset
-                    else:
-                        rank_value = 0
                     rank_dict[arxiv_id] = {
-                        "rank": rank_value,
-                        "total": total_len
+                        "rank": rank,
+                        "total": total_rank
                     }
-            # 没出现的 gt_arxiv_ids 记为 total_len
             for arxiv_id in gt_arxiv_ids:
                 if arxiv_id not in found_arxiv_ids:
                     rank_dict[arxiv_id] = {
-                        "rank": total_len,
-                        "total": total_len
+                        "rank": config.TOTAL_PAPER_NUM,
+                        "total": total_rank
                     }
 
         # 应用分页

@@ -19,6 +19,21 @@ from agent import Planner, Selector, PaperSummarizer, Browser
 from metrics import Timer, MetricsCalculator
 
 
+def _run_async(coro):
+    """Run an async coroutine, handling nested event loops gracefully."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(asyncio.run, coro).result()
+    else:
+        return asyncio.run(coro)
+
+
 logger = get_logger(__name__, log_file='./log/deeprag.log')
 
 class DeepResearchWorkflow:
@@ -209,7 +224,7 @@ class DeepResearchWorkflow:
 
             
             with Timer() as retrieval_timer:
-                retrieval_map = asyncio.run(run_retrieval(subqueries.values()))
+                retrieval_map = _run_async(run_retrieval(subqueries.values()))
             timings["retrieval"] += retrieval_timer.elapsed
                 
             papers_for_selection: Dict[int, List[Paper]] = {}
@@ -248,7 +263,7 @@ class DeepResearchWorkflow:
                         for (sq_id, _), summaries in zip(papers_for_selection.items(), results)
                     }
 
-                summaries_map_by_sq = asyncio.run(run_batch_summaries())
+                summaries_map_by_sq = _run_async(run_batch_summaries())
                 
                 # Apply summaries to papers using the new method
                 for sq_id, plist in papers_for_selection.items():
@@ -311,12 +326,12 @@ class DeepResearchWorkflow:
                             browsing_arxiv_ids.add(item['paper'].arxiv_id)
 
                 with Timer() as browse_timer:
-                    asyncio.run(run_browsing())
+                    _run_async(run_browsing())
                 timings["browser"] += browse_timer.elapsed
                 
             # Selector decision
             with Timer() as selector_timer:
-                selection_results = asyncio.run(run_selection(is_after_browsing=False))
+                selection_results = _run_async(run_selection(is_after_browsing=False))
             timings["selector"] += selector_timer.elapsed
                 
             cur_iter_selected_papers: Dict[int, List[Paper]] = {}
@@ -333,7 +348,7 @@ class DeepResearchWorkflow:
                                 browsing_arxiv_ids.add(item['paper'].arxiv_id)
 
                     with Timer() as browse_timer:
-                        asyncio.run(run_browsing())
+                        _run_async(run_browsing())
                     timings["browser"] += browse_timer.elapsed
                     
                     if config.BROWSER_MODE == "INCREMENTAL":
@@ -351,7 +366,7 @@ class DeepResearchWorkflow:
                         }
                     
                     with Timer() as selector_timer:
-                        selection_results = asyncio.run(run_selection(is_after_browsing=True))
+                        selection_results = _run_async(run_selection(is_after_browsing=True))
                     timings["selector"] += selector_timer.elapsed
                     
                     self._process_selector_results(selection_results,cur_iter_selected_papers,subquery_states,checklist,papers_for_browsing)
