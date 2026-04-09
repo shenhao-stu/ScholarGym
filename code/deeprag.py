@@ -225,6 +225,15 @@ class DeepResearchWorkflow:
                 papers_for_selection[sq_id] = new_state.retrieved_papers
                 rank_dicts[sq_id] = rank_dict
 
+                if config.VERBOSE:
+                    sq_text = sq_obj.text[:60] if sq_obj else "?"
+                    logger.info(f"[VERBOSE Retrieval] sq={sq_id} \"{sq_text}\" → {len(new_papers)} papers")
+                    for p in new_papers[:5]:
+                        gt_mark = " ★GT" if gt_arxiv_ids and p.arxiv_id in gt_arxiv_ids else ""
+                        logger.info(f"[VERBOSE Retrieval]   [{p.arxiv_id}] score={p.score:.4f} {p.title[:60]}{gt_mark}")
+                    if len(new_papers) > 5:
+                        logger.info(f"[VERBOSE Retrieval]   ... +{len(new_papers)-5} more")
+
             original_papers_for_selection = {
                 sq_id: list(papers) for sq_id, papers in papers_for_selection.items()
             }
@@ -361,14 +370,14 @@ class DeepResearchWorkflow:
             # Update selected_paper_ids_tracker with all papers selected in this iteration
             for kept in cur_iter_selected_papers.values():
                 if kept:
-                    selected_paper_ids_tracker.update({p.id for p in kept})
+                    selected_paper_ids_tracker.update({p.arxiv_id for p in kept if p.arxiv_id})
             
             # Merge kept papers
             for sq_id, kept in cur_iter_selected_papers.items():
                 if sq_id not in final_selected_papers:
                     final_selected_papers[sq_id] = []
-                existing = {p.id for p in final_selected_papers[sq_id]}
-                final_selected_papers[sq_id].extend([p for p in kept if p.id not in existing])
+                existing = {p.arxiv_id for p in final_selected_papers[sq_id]}
+                final_selected_papers[sq_id].extend([p for p in kept if p.arxiv_id not in existing])
 
             # Update memory
             if experience:

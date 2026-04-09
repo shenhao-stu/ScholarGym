@@ -138,22 +138,36 @@ class MetricsCalculator:
             if total_discarded else 0.0
         )
         
+        # F1 scores
+        retrieval_f1 = (
+            2 * retrieval_precision * retrieval_recall / (retrieval_precision + retrieval_recall)
+            if (retrieval_precision + retrieval_recall) > 0 else 0.0
+        )
+        selection_f1 = (
+            2 * selection_precision * selection_recall / (selection_precision + selection_recall)
+            if (selection_precision + selection_recall) > 0 else 0.0
+        )
+
         return {
             "retrieval": {
                 "precision": retrieval_precision,
                 "recall": retrieval_recall,
+                "f1": retrieval_f1,
                 "matched": len(retrieved_matched),
                 "total": len(all_retrieved)
             },
             "selection": {
                 "precision": selection_precision,
                 "recall": selection_recall,
+                "f1": selection_f1,
                 "matched": len(selected_matched),
                 "total": len(all_selected)
             },
             "discarded_gt_count": len(total_discarded_gt),
             "discarded_gt_ids": list(total_discarded_gt),
             "discarded_total_count": len(total_discarded),
+            "gt_discard_rate": discarded_ratio,
+            # Keep backward compatibility
             "discarded_ratio": discarded_ratio
         }
     
@@ -269,7 +283,10 @@ class MetricsCalculator:
         }
         
         # Step 5: Calculate average distance
-        avg_distance = sum(cur_iter_distances.values()) / len(cur_iter_distances)
+        avg_distance = (
+            sum(cur_iter_distances.values()) / len(cur_iter_distances)
+            if cur_iter_distances else 0.0
+        )
         
         return {
             "gt_rank": gt_rank_details,

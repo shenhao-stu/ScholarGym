@@ -1,0 +1,364 @@
+{
+  "subquery_metrics": [
+    {
+      "id": "perfect_match",
+      "retrieved": ["gt1", "gt2", "gt3", "extra1"],
+      "selected": ["gt1", "gt2", "gt3"],
+      "gt": ["gt1", "gt2", "gt3"],
+      "expected": {
+        "ret_recall": 1.0, "ret_prec": 0.75,
+        "sel_recall": 1.0, "sel_prec": 1.0,
+        "disc_count": 0
+      }
+    },
+    {
+      "id": "partial_match",
+      "retrieved": ["gt1", "gt2", "noise1"],
+      "selected": ["gt1", "noise1"],
+      "gt": ["gt1", "gt2", "gt3"],
+      "expected": {
+        "ret_recall": 0.6667, "ret_prec": 0.6667,
+        "sel_recall": 0.3333, "sel_prec": 0.5,
+        "disc_count": 1, "disc_ids": ["gt2"]
+      }
+    },
+    {
+      "id": "no_overlap",
+      "retrieved": ["noise1", "noise2"],
+      "selected": ["noise1"],
+      "gt": ["gt1", "gt2", "gt3"],
+      "expected": {
+        "ret_recall": 0.0, "ret_prec": 0.0,
+        "sel_recall": 0.0, "sel_prec": 0.0,
+        "disc_count": 0
+      }
+    },
+    {
+      "id": "empty_retrieval",
+      "retrieved": [],
+      "selected": [],
+      "gt": ["gt1", "gt2", "gt3"],
+      "expected": {
+        "ret_recall": 0.0, "ret_prec": 0.0,
+        "sel_recall": 0.0, "sel_prec": 0.0,
+        "disc_count": 0
+      }
+    },
+    {
+      "id": "empty_gt",
+      "retrieved": ["a", "b"],
+      "selected": ["a"],
+      "gt": [],
+      "expected": {
+        "ret_recall": 0.0, "ret_prec": 0.0,
+        "sel_recall": 0.0, "sel_prec": 0.0,
+        "disc_count": 0
+      }
+    },
+    {
+      "id": "all_empty",
+      "retrieved": [],
+      "selected": [],
+      "gt": [],
+      "expected": {
+        "ret_recall": 0.0, "ret_prec": 0.0,
+        "sel_recall": 0.0, "sel_prec": 0.0,
+        "disc_count": 0
+      }
+    },
+    {
+      "id": "discarded_gt_tracking",
+      "retrieved": ["gt1", "gt2", "gt3"],
+      "selected": ["gt1"],
+      "gt": ["gt1", "gt2", "gt3"],
+      "expected": {
+        "ret_recall": 1.0, "ret_prec": 1.0,
+        "sel_recall": 0.3333, "sel_prec": 1.0,
+        "disc_count": 2, "disc_ids": ["gt2", "gt3"]
+      }
+    },
+    {
+      "id": "single_paper_perfect",
+      "retrieved": ["gt1"],
+      "selected": ["gt1"],
+      "gt": ["gt1"],
+      "expected": {
+        "ret_recall": 1.0, "ret_prec": 1.0,
+        "sel_recall": 1.0, "sel_prec": 1.0,
+        "disc_count": 0
+      }
+    },
+    {
+      "id": "large_noise_small_gt",
+      "retrieved": ["gt1", "n1", "n2", "n3", "n4", "n5", "n6", "n7", "n8", "n9"],
+      "selected": ["gt1", "n1", "n2"],
+      "gt": ["gt1", "gt2"],
+      "expected": {
+        "ret_recall": 0.5, "ret_prec": 0.1,
+        "sel_recall": 0.5, "sel_prec": 0.3333,
+        "disc_count": 0
+      }
+    },
+    {
+      "id": "all_gt_retrieved_none_selected",
+      "retrieved": ["gt1", "gt2", "gt3"],
+      "selected": [],
+      "gt": ["gt1", "gt2", "gt3"],
+      "expected": {
+        "ret_recall": 1.0, "ret_prec": 1.0,
+        "sel_recall": 0.0, "sel_prec": 0.0,
+        "disc_count": 3, "disc_ids": ["gt1", "gt2", "gt3"]
+      }
+    }
+  ],
+
+  "iteration_metrics": [
+    {
+      "id": "single_subquery",
+      "subquery_results": {
+        "1": {
+          "retrieved_arxiv_ids": ["gt1", "gt2", "noise"],
+          "selected_arxiv_ids": ["gt1"]
+        }
+      },
+      "gt": ["gt1", "gt2", "gt3"],
+      "expected": {
+        "ret_recall": 0.6667, "ret_matched": 2,
+        "sel_recall": 0.3333, "sel_matched": 1,
+        "disc_count": 1
+      }
+    },
+    {
+      "id": "overlapping_subqueries_dedup",
+      "subquery_results": {
+        "1": {
+          "retrieved_arxiv_ids": ["gt1", "noise1"],
+          "selected_arxiv_ids": ["gt1"]
+        },
+        "2": {
+          "retrieved_arxiv_ids": ["gt1", "gt2", "noise2"],
+          "selected_arxiv_ids": ["gt1", "gt2"]
+        }
+      },
+      "gt": ["gt1", "gt2", "gt3"],
+      "expected": {
+        "ret_total": 4, "ret_matched": 2, "ret_recall": 0.6667,
+        "sel_total": 2, "sel_recall": 0.6667,
+        "disc_count": 0
+      }
+    },
+    {
+      "id": "f1_calculation",
+      "subquery_results": {
+        "1": {
+          "retrieved_arxiv_ids": ["gt1", "gt2", "gt3", "noise"],
+          "selected_arxiv_ids": ["gt1", "gt2", "noise"]
+        }
+      },
+      "gt": ["gt1", "gt2", "gt3"],
+      "expected": {
+        "ret_f1": 0.8571,
+        "sel_f1": 0.6667
+      }
+    },
+    {
+      "id": "discarded_ratio",
+      "subquery_results": {
+        "1": {
+          "retrieved_arxiv_ids": ["gt1", "gt2", "gt3", "n1", "n2"],
+          "selected_arxiv_ids": ["gt1", "n1"]
+        }
+      },
+      "gt": ["gt1", "gt2", "gt3"],
+      "expected": {
+        "disc_count": 2, "disc_total": 3, "disc_ratio": 0.6667
+      }
+    },
+    {
+      "id": "all_empty_subqueries",
+      "subquery_results": {
+        "1": {
+          "retrieved_arxiv_ids": [],
+          "selected_arxiv_ids": []
+        }
+      },
+      "gt": ["gt1", "gt2", "gt3"],
+      "expected": {
+        "ret_recall": 0.0, "sel_recall": 0.0, "disc_ratio": 0.0
+      }
+    },
+    {
+      "id": "empty_subquery_results_dict",
+      "subquery_results": {},
+      "gt": ["gt1", "gt2", "gt3"],
+      "expected": {
+        "ret_recall": 0.0, "ret_total": 0, "disc_ratio": 0.0
+      }
+    },
+    {
+      "id": "three_subqueries_no_overlap",
+      "subquery_results": {
+        "1": {
+          "retrieved_arxiv_ids": ["gt1", "n1"],
+          "selected_arxiv_ids": ["gt1"]
+        },
+        "2": {
+          "retrieved_arxiv_ids": ["gt2", "n2"],
+          "selected_arxiv_ids": ["gt2"]
+        },
+        "3": {
+          "retrieved_arxiv_ids": ["gt3", "n3"],
+          "selected_arxiv_ids": ["gt3"]
+        }
+      },
+      "gt": ["gt1", "gt2", "gt3"],
+      "expected": {
+        "ret_recall": 1.0, "ret_total": 6, "ret_matched": 3,
+        "sel_recall": 1.0, "sel_total": 3, "sel_matched": 3,
+        "disc_count": 0
+      }
+    },
+    {
+      "id": "all_noise_no_gt_hit",
+      "subquery_results": {
+        "1": {
+          "retrieved_arxiv_ids": ["n1", "n2", "n3"],
+          "selected_arxiv_ids": ["n1"]
+        }
+      },
+      "gt": ["gt1", "gt2"],
+      "expected": {
+        "ret_recall": 0.0, "sel_recall": 0.0, "disc_count": 0
+      }
+    }
+  ],
+
+  "retrieval_metrics": [
+    {
+      "id": "retrieval_only",
+      "gt": ["gt1", "gt2", "gt3"],
+      "retrieved": ["gt1", "gt2", "noise"],
+      "selected": null,
+      "expected": {
+        "retrieval_recall": 0.6667, "retrieval_precision": 0.6667,
+        "retrieval_matches": 2, "retrieved_count": 3
+      }
+    },
+    {
+      "id": "retrieval_and_selection",
+      "gt": ["gt1", "gt2", "gt3"],
+      "retrieved": ["gt1", "gt2", "noise"],
+      "selected": ["gt1"],
+      "expected": {
+        "retrieval_recall": 0.6667,
+        "recall": 0.3333, "precision": 1.0,
+        "matches": 1, "selected_count": 1
+      }
+    },
+    {
+      "id": "f1_calculation",
+      "gt": ["gt1", "gt2", "gt3"],
+      "retrieved": ["gt1", "noise"],
+      "selected": null,
+      "expected": {
+        "retrieval_f1": 0.4
+      }
+    },
+    {
+      "id": "empty_sets",
+      "gt": ["gt1", "gt2", "gt3"],
+      "retrieved": [],
+      "selected": null,
+      "expected": {
+        "retrieval_recall": 0.0, "retrieval_precision": 0.0,
+        "retrieval_f1": 0.0, "retrieved_count": 0
+      }
+    },
+    {
+      "id": "empty_gt_with_results",
+      "gt": [],
+      "retrieved": ["a", "b"],
+      "selected": null,
+      "expected": {
+        "retrieval_recall": 0.0, "retrieval_precision": 0.0
+      }
+    },
+    {
+      "id": "selection_f1",
+      "gt": ["gt1", "gt2", "gt3"],
+      "retrieved": ["gt1", "gt2", "noise"],
+      "selected": ["gt1", "noise"],
+      "expected": {
+        "f1": 0.4
+      }
+    },
+    {
+      "id": "perfect_retrieval_and_selection",
+      "gt": ["gt1", "gt2"],
+      "retrieved": ["gt1", "gt2"],
+      "selected": ["gt1", "gt2"],
+      "expected": {
+        "retrieval_recall": 1.0, "retrieval_precision": 1.0, "retrieval_f1": 1.0,
+        "recall": 1.0, "precision": 1.0, "f1": 1.0
+      }
+    },
+    {
+      "id": "large_retrieval_small_selection",
+      "gt": ["gt1", "gt2", "gt3"],
+      "retrieved": ["gt1", "gt2", "gt3", "n1", "n2", "n3", "n4", "n5"],
+      "selected": ["gt1"],
+      "expected": {
+        "retrieval_recall": 1.0, "retrieval_precision": 0.375,
+        "recall": 0.3333, "precision": 1.0
+      }
+    }
+  ],
+
+  "simple_avg_distance": [
+    {
+      "id": "normal_case",
+      "rank_dicts": [
+        {"gt1": {"rank": 10}, "gt2": {"rank": 20}},
+        {"gt1": {"rank": 5}, "gt3": {"rank": 50}}
+      ],
+      "gt": ["gt1", "gt2", "gt3"],
+      "cutoff": 100,
+      "expected": 0.75
+    },
+    {
+      "id": "empty_rank_dicts",
+      "rank_dicts": [],
+      "gt": ["gt1", "gt2", "gt3"],
+      "cutoff": 100,
+      "expected": 0.0
+    },
+    {
+      "id": "empty_gt_ids",
+      "rank_dicts": [{"a": {"rank": 1}}],
+      "gt": [],
+      "cutoff": 100,
+      "expected": 0.0
+    },
+    {
+      "id": "gt_not_in_rank_dicts",
+      "rank_dicts": [{"other": {"rank": 5}}],
+      "gt": ["gt1", "gt2", "gt3"],
+      "cutoff": 100,
+      "expected": 0.0
+    },
+    {
+      "id": "all_at_rank_1",
+      "rank_dicts": [{"gt1": {"rank": 1}, "gt2": {"rank": 1}}],
+      "gt": ["gt1", "gt2"],
+      "cutoff": 100,
+      "expected": 0.99
+    },
+    {
+      "id": "single_gt_single_rank",
+      "rank_dicts": [{"gt1": {"rank": 50}}],
+      "gt": ["gt1"],
+      "cutoff": 100,
+      "expected": 0.5
+    }
+  ]
+}

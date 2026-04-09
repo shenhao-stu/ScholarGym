@@ -78,6 +78,7 @@ SUMMARY_LLM_GEN_PARAMS = {
 }
 
 DEBUG = False
+VERBOSE = False  # 开启后在控制台输出 planner/selector/retrieval 的关键中间结果
 CASE_STUDY_OUTPUT_DIR = './case_study'
 
 # --- Paper Corpus ---

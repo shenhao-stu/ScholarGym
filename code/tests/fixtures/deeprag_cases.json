@@ -1,0 +1,255 @@
+{
+  "mcp_results_to_papers": [
+    {
+      "id": "basic_conversion",
+      "input": [
+        {"paper_id": "p1", "title": "Paper A", "abstract": "abs A", "arxiv_id": "2001.00001", "date": "2020", "score": 0.9},
+        {"paper_id": "p2", "title": "Paper B", "abstract": "abs B", "arxiv_id": "2001.00002"}
+      ],
+      "expected": [
+        {"id": "p1", "title": "Paper A", "arxiv_id": "2001.00001", "score": 0.9},
+        {"id": "p2", "title": "Paper B", "arxiv_id": "2001.00002", "score": null}
+      ]
+    },
+    {
+      "id": "missing_fields_use_defaults",
+      "input": [{}],
+      "expected": [
+        {"id": "", "title": "N/A", "abstract": "N/A", "arxiv_id": "N/A", "date": null, "score": null}
+      ]
+    },
+    {
+      "id": "empty_input",
+      "input": [],
+      "expected": []
+    },
+    {
+      "id": "preserves_all_fields",
+      "input": [
+        {"paper_id": "x", "title": "T", "abstract": "A", "arxiv_id": "y", "date": "2024-01", "score": 0.5}
+      ],
+      "expected": [
+        {"id": "x", "title": "T", "abstract": "A", "arxiv_id": "y", "date": "2024-01", "score": 0.5}
+      ]
+    },
+    {
+      "id": "single_field_only",
+      "input": [{"paper_id": "p1"}],
+      "expected": [
+        {"id": "p1", "title": "N/A", "abstract": "N/A", "arxiv_id": "N/A"}
+      ]
+    },
+    {
+      "id": "many_papers",
+      "input": [
+        {"paper_id": "p1", "title": "T1", "abstract": "A1", "arxiv_id": "a1", "score": 0.1},
+        {"paper_id": "p2", "title": "T2", "abstract": "A2", "arxiv_id": "a2", "score": 0.2},
+        {"paper_id": "p3", "title": "T3", "abstract": "A3", "arxiv_id": "a3", "score": 0.3},
+        {"paper_id": "p4", "title": "T4", "abstract": "A4", "arxiv_id": "a4", "score": 0.4},
+        {"paper_id": "p5", "title": "T5", "abstract": "A5", "arxiv_id": "a5", "score": 0.5}
+      ],
+      "expected": [
+        {"id": "p1", "arxiv_id": "a1", "score": 0.1},
+        {"id": "p2", "arxiv_id": "a2", "score": 0.2},
+        {"id": "p3", "arxiv_id": "a3", "score": 0.3},
+        {"id": "p4", "arxiv_id": "a4", "score": 0.4},
+        {"id": "p5", "arxiv_id": "a5", "score": 0.5}
+      ]
+    }
+  ],
+
+  "process_selector_results": {
+    "papers": {
+      "p1": {"id": "p1", "title": "Paper 1", "abstract": "abs", "arxiv_id": "a1"},
+      "p2": {"id": "p2", "title": "Paper 2", "abstract": "abs", "arxiv_id": "a2"},
+      "p3": {"id": "p3", "title": "Paper 3", "abstract": "abs", "arxiv_id": "a3"}
+    },
+    "cases": [
+      {
+        "id": "overwrite_mode_default",
+        "selection_results": {
+          "1": {"kept_ids": ["p1", "p2"], "overview": "overview text", "to_browse": {}}
+        },
+        "existing_selected": {},
+        "subquery_states": {"1": [{"text": "q1"}]},
+        "expected_count": {"1": 2}
+      },
+      {
+        "id": "overwrite_replaces_previous",
+        "selection_results": {
+          "1": {"kept_ids": ["p2", "p3"], "overview": "new overview", "to_browse": {}}
+        },
+        "existing_selected": {"1": ["p1"]},
+        "subquery_states": {"1": [{"text": "q1"}]},
+        "expected_count": {"1": 2},
+        "expected_first_id": {"1": "p2"}
+      },
+      {
+        "id": "multiple_subqueries",
+        "selection_results": {
+          "1": {"kept_ids": ["p1"], "overview": "ov1", "to_browse": {}},
+          "2": {"kept_ids": ["p2"], "overview": "ov2", "to_browse": {}}
+        },
+        "existing_selected": {},
+        "subquery_states": {
+          "1": [{"text": "q1"}],
+          "2": [{"text": "q2"}]
+        },
+        "expected_count": {"1": 1, "2": 1},
+        "expected_overviews": {"1": "ov1", "2": "ov2"}
+      },
+      {
+        "id": "none_result_handled",
+        "selection_results": {"1": null},
+        "existing_selected": {},
+        "subquery_states": {"1": [{"text": "q1"}]},
+        "expected_count": {"1": 0}
+      },
+      {
+        "id": "missing_subquery_state",
+        "selection_results": {
+          "1": {"kept_ids": ["p1"], "overview": "ov", "to_browse": {}}
+        },
+        "existing_selected": {},
+        "subquery_states": {},
+        "expected_count": {"1": 1}
+      }
+    ]
+  },
+
+  "incremental_mode_cases": [
+    {
+      "id": "incremental_dedup",
+      "existing": {"1": ["p1"]},
+      "new_kept_ids": ["p1", "p2", "p3"],
+      "expected_count": 3,
+      "expected_ids": ["p1", "p2", "p3"]
+    },
+    {
+      "id": "incremental_empty_existing",
+      "existing": {},
+      "new_kept_ids": ["p1"],
+      "expected_count": 1,
+      "expected_ids": ["p1"]
+    },
+    {
+      "id": "incremental_all_duplicates",
+      "existing": {"1": ["p1", "p2"]},
+      "new_kept_ids": ["p1", "p2"],
+      "expected_count": 2,
+      "expected_ids": ["p1", "p2"]
+    }
+  ],
+
+  "workflow_run_papers": {
+    "default_paper": {"id": "p1", "title": "Paper 1", "abstract": "abs", "arxiv_id": "2001.00001"},
+    "paper_2": {"id": "p2", "title": "Paper 2", "abstract": "abs", "arxiv_id": "2001.00002"},
+    "paper_3": {"id": "p3", "title": "Paper 3", "abstract": "abs", "arxiv_id": "2001.00003"},
+    "paper_a1": {"id": "p1", "title": "Paper 1", "abstract": "abs", "arxiv_id": "a1"},
+    "paper_a2": {"id": "p2", "title": "Paper 2", "abstract": "abs", "arxiv_id": "a2"},
+    "paper_browsed": {"id": "pb1", "title": "Browsed Paper", "abstract": "browsed abs", "arxiv_id": "b1"}
+  },
+
+  "browser_mode_cases": [
+    {
+      "id": "none_no_browsing",
+      "mode": "NONE",
+      "description": "NONE mode: selector runs once, no browsing, overwrite",
+      "initial_papers": ["default_paper", "paper_2"],
+      "selector_first_kept": ["default_paper"],
+      "selector_first_to_browse": {},
+      "expect_browse_called": false,
+      "expect_selector_calls": 1,
+      "expected_selected_ids": ["p1"]
+    },
+    {
+      "id": "pre_enrich_browse_before_selector",
+      "mode": "PRE_ENRICH",
+      "description": "PRE_ENRICH mode: browse ALL papers first, then selector once",
+      "initial_papers": ["default_paper", "paper_2"],
+      "selector_first_kept": ["default_paper", "paper_2"],
+      "selector_first_to_browse": {},
+      "expect_browse_called": true,
+      "expect_browsed_paper_count": 2,
+      "expect_selector_calls": 1,
+      "expected_selected_ids": ["p1", "p2"]
+    },
+    {
+      "id": "refresh_browse_then_reselector_all",
+      "mode": "REFRESH",
+      "description": "REFRESH mode: selector first -> browse uncertain -> re-selector with ALL original papers, overwrite",
+      "initial_papers": ["default_paper", "paper_2", "paper_3"],
+      "selector_first_kept": ["default_paper"],
+      "selector_first_to_browse": {"paper_2": "check methodology"},
+      "selector_second_kept": ["default_paper", "paper_2"],
+      "selector_second_to_browse": {},
+      "expect_browse_called": true,
+      "expect_browsed_paper_count": 1,
+      "expect_selector_calls": 2,
+      "expect_second_selector_paper_count": 3,
+      "expected_selected_ids": ["p1", "p2"]
+    },
+    {
+      "id": "refresh_no_uncertain_no_rebrowse",
+      "mode": "REFRESH",
+      "description": "REFRESH mode with no uncertain papers: selector once, no browsing",
+      "initial_papers": ["default_paper", "paper_2"],
+      "selector_first_kept": ["default_paper"],
+      "selector_first_to_browse": {},
+      "expect_browse_called": false,
+      "expect_selector_calls": 1,
+      "expected_selected_ids": ["p1"]
+    },
+    {
+      "id": "incremental_browse_then_merge",
+      "mode": "INCREMENTAL",
+      "description": "INCREMENTAL mode: selector first -> browse uncertain -> re-selector with ONLY browsed papers -> merge deduplicated",
+      "initial_papers": ["default_paper", "paper_2", "paper_3"],
+      "selector_first_kept": ["default_paper"],
+      "selector_first_to_browse": {"paper_2": "verify claims"},
+      "selector_second_kept": ["paper_2"],
+      "selector_second_to_browse": {},
+      "expect_browse_called": true,
+      "expect_browsed_paper_count": 1,
+      "expect_selector_calls": 2,
+      "expect_second_selector_paper_count": 1,
+      "expected_selected_ids": ["p1", "p2"]
+    },
+    {
+      "id": "incremental_dedup_on_merge",
+      "mode": "INCREMENTAL",
+      "description": "INCREMENTAL mode: second selector returns a paper already selected in first round -> should deduplicate",
+      "initial_papers": ["default_paper", "paper_2"],
+      "selector_first_kept": ["default_paper"],
+      "selector_first_to_browse": {"paper_2": "verify"},
+      "selector_second_kept": ["default_paper", "paper_2"],
+      "selector_second_to_browse": {},
+      "expect_browse_called": true,
+      "expect_selector_calls": 2,
+      "expected_selected_ids": ["p1", "p2"]
+    },
+    {
+      "id": "incremental_no_uncertain_no_rebrowse",
+      "mode": "INCREMENTAL",
+      "description": "INCREMENTAL mode with no uncertain papers: selector once, no browsing",
+      "initial_papers": ["default_paper"],
+      "selector_first_kept": ["default_paper"],
+      "selector_first_to_browse": {},
+      "expect_browse_called": false,
+      "expect_selector_calls": 1,
+      "expected_selected_ids": ["p1"]
+    }
+  ],
+
+  "workflow_run_subqueries": {
+    "default": {"1": {"id": 1, "text": "test query", "target_k": 5}},
+    "two_queries": {
+      "1": {"id": 1, "text": "neural network", "target_k": 5},
+      "2": {"id": 2, "text": "deep learning", "target_k": 5}
+    },
+    "iter_queries": {
+      "sq1": {"id": 1, "text": "q1", "target_k": 5, "iter_index": 1},
+      "sq2": {"id": 2, "text": "q2", "target_k": 5, "iter_index": 2}
+    }
+  }
+}

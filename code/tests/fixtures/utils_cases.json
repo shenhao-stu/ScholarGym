@@ -1,0 +1,309 @@
+{
+  "extract_ground_truth": [
+    {
+      "id": "normal_extraction",
+      "papers": [
+        {"arxiv_id": "A", "title": "Paper A"},
+        {"arxiv_id": "B", "title": "Paper B"},
+        {"arxiv_id": "C", "title": "Paper C"}
+      ],
+      "labels": [1, 0, 1],
+      "expected": ["A", "C"]
+    },
+    {
+      "id": "filter_missing_arxiv_id",
+      "papers": [
+        {"arxiv_id": "A", "title": "Paper A"},
+        {"title": "No ID Paper"},
+        {"arxiv_id": "", "title": "Empty ID"}
+      ],
+      "labels": [1, 1, 1],
+      "expected": ["A"]
+    },
+    {
+      "id": "empty_input",
+      "papers": [],
+      "labels": [],
+      "expected": []
+    },
+    {
+      "id": "all_negative_labels",
+      "papers": [
+        {"arxiv_id": "A", "title": "X"},
+        {"arxiv_id": "B", "title": "Y"}
+      ],
+      "labels": [0, 0],
+      "expected": []
+    },
+    {
+      "id": "all_positive_labels",
+      "papers": [
+        {"arxiv_id": "A", "title": "X"},
+        {"arxiv_id": "B", "title": "Y"},
+        {"arxiv_id": "C", "title": "Z"}
+      ],
+      "labels": [1, 1, 1],
+      "expected": ["A", "B", "C"]
+    },
+    {
+      "id": "single_paper_positive",
+      "papers": [{"arxiv_id": "X", "title": "Only"}],
+      "labels": [1],
+      "expected": ["X"]
+    },
+    {
+      "id": "single_paper_negative",
+      "papers": [{"arxiv_id": "X", "title": "Only"}],
+      "labels": [0],
+      "expected": []
+    },
+    {
+      "id": "duplicate_arxiv_ids",
+      "papers": [
+        {"arxiv_id": "A", "title": "Paper A1"},
+        {"arxiv_id": "A", "title": "Paper A2"}
+      ],
+      "labels": [1, 1],
+      "expected": ["A"]
+    }
+  ],
+
+  "parse_json_from_tag": [
+    {
+      "id": "xml_tag_extraction",
+      "response": "<result>{\"key\": \"value\"}</result>",
+      "tag": "result",
+      "expected": {"key": "value"}
+    },
+    {
+      "id": "code_block_extraction",
+      "response": "```json\n{\"key\": \"value\"}\n```",
+      "tag": "nonexistent",
+      "expected": {"key": "value"}
+    },
+    {
+      "id": "raw_json_object",
+      "response": "Here is the output: {\"key\": \"value\"} end",
+      "tag": "nonexistent",
+      "expected": {"key": "value"}
+    },
+    {
+      "id": "nested_json",
+      "response": "<result>{\"outer\": {\"inner\": [1, 2, 3]}}</result>",
+      "tag": "result",
+      "expected": {"outer": {"inner": [1, 2, 3]}}
+    },
+    {
+      "id": "json_with_array_value",
+      "response": "<result>{\"items\": [\"a\", \"b\", \"c\"]}</result>",
+      "tag": "result",
+      "expected": {"items": ["a", "b", "c"]}
+    },
+    {
+      "id": "json_with_unicode",
+      "response": "<result>{\"name\": \"论文标题\"}</result>",
+      "tag": "result",
+      "expected": {"name": "论文标题"}
+    },
+    {
+      "id": "clean_tag_json",
+      "response": "<result>{\"a\": 1}</result>",
+      "tag": "result",
+      "expected": {"a": 1}
+    },
+    {
+      "id": "invalid_json",
+      "response": "<result>{not valid json}</result>",
+      "tag": "result",
+      "expected": null
+    },
+    {
+      "id": "no_json_found",
+      "response": "just plain text",
+      "tag": "tag",
+      "expected": null
+    },
+    {
+      "id": "empty_response",
+      "response": "",
+      "tag": "result",
+      "expected": null
+    },
+    {
+      "id": "json_with_boolean_and_null",
+      "response": "<result>{\"flag\": true, \"val\": null}</result>",
+      "tag": "result",
+      "expected": {"flag": true, "val": null}
+    }
+  ],
+
+  "remove_think_blocks": [
+    {
+      "id": "remove_thought_tag",
+      "input": "<thought>reasoning</thought> actual content",
+      "expected": " actual content"
+    },
+    {
+      "id": "no_blocks",
+      "input": "no thinking here",
+      "expected": "no thinking here"
+    },
+    {
+      "id": "multiple_blocks",
+      "input": "<thought>block1</thought> middle <thought>block2</thought> end",
+      "expected": " middle  end"
+    },
+    {
+      "id": "empty_string",
+      "input": "",
+      "expected": ""
+    },
+    {
+      "id": "multiline_thought",
+      "input": "<thought>\nline1\nline2\n</thought> result",
+      "expected": " result"
+    },
+    {
+      "id": "thought_at_end",
+      "input": "content before <thought>reasoning</thought>",
+      "expected": "content before "
+    },
+    {
+      "id": "only_thought_block",
+      "input": "<thought>everything is reasoning</thought>",
+      "expected": ""
+    },
+    {
+      "id": "text_without_tags_preserved",
+      "input": "some <b>bold</b> text that is not thought",
+      "expected": "some <b>bold</b> text that is not thought"
+    }
+  ],
+
+  "checkpoint_rebuild_deep_research": [
+    {
+      "id": "basic_rebuild",
+      "cached_result": {
+        "idx": 0,
+        "ground_truth_arxiv_ids": ["gt1", "gt2"],
+        "iteration_results": [
+          {
+            "iter_idx": 1,
+            "recall": 0.3,
+            "precision": 0.5,
+            "retrieval_recall": 0.4,
+            "retrieval_precision": 0.6,
+            "iteration_metrics": {"discarded_ratio": 0.2, "discarded_total_count": 5},
+            "avg_distance": 0.7,
+            "planner_during": 1.0,
+            "retrieval_during": 2.0,
+            "selector_during": 3.0,
+            "browser_during": -1,
+            "overhead_during": 0.5,
+            "total_during": 6.5
+          }
+        ]
+      },
+      "max_iterations": 3,
+      "expected": {
+        "successful_queries": 1,
+        "recall_iter_1": [0.3],
+        "precision_iter_1": [0.5],
+        "recall_iter_2": [0.3],
+        "recall_iter_3": [0.3],
+        "avg_distance_iter_1": [0.7],
+        "discarded_ratio_iter_1": [0.2],
+        "discarded_total_count_iter_1": [5]
+      }
+    },
+    {
+      "id": "two_iterations",
+      "cached_result": {
+        "idx": 0,
+        "ground_truth_arxiv_ids": ["gt1", "gt2", "gt3"],
+        "iteration_results": [
+          {
+            "iter_idx": 1,
+            "recall": 0.2,
+            "precision": 0.4,
+            "retrieval_recall": 0.3,
+            "retrieval_precision": 0.5,
+            "iteration_metrics": {"discarded_ratio": 0.1, "discarded_total_count": 2},
+            "avg_distance": 0.5,
+            "planner_during": 0.8,
+            "retrieval_during": 1.5,
+            "selector_during": 2.0,
+            "browser_during": -1,
+            "overhead_during": 0.3,
+            "total_during": 4.6
+          },
+          {
+            "iter_idx": 2,
+            "recall": 0.6,
+            "precision": 0.7,
+            "retrieval_recall": 0.5,
+            "retrieval_precision": 0.8,
+            "iteration_metrics": {"discarded_ratio": 0.05, "discarded_total_count": 1},
+            "avg_distance": 0.8,
+            "planner_during": 0.9,
+            "retrieval_during": 1.2,
+            "selector_during": 1.8,
+            "browser_during": -1,
+            "overhead_during": 0.2,
+            "total_during": 4.1
+          }
+        ]
+      },
+      "max_iterations": 3,
+      "expected": {
+        "successful_queries": 1,
+        "recall_iter_1": [0.2],
+        "recall_iter_2": [0.6],
+        "recall_iter_3": [0.6],
+        "avg_distance_iter_2": [0.8]
+      }
+    }
+  ],
+
+  "checkpoint_rebuild_simple": [
+    {
+      "id": "basic_simple",
+      "cached_result": {
+        "idx": 0,
+        "ground_truth_arxiv_ids": ["gt1", "gt2"],
+        "top_results": [
+          {"arxiv_id": "gt1"},
+          {"arxiv_id": "noise"},
+          {"arxiv_id": "gt2"}
+        ]
+      },
+      "top_k_list": [2],
+      "expected": {
+        "successful_queries": 1,
+        "recall@2": [0.5],
+        "precision@2": [0.5]
+      }
+    },
+    {
+      "id": "multiple_k_values",
+      "cached_result": {
+        "idx": 0,
+        "ground_truth_arxiv_ids": ["gt1", "gt2", "gt3"],
+        "top_results": [
+          {"arxiv_id": "gt1"},
+          {"arxiv_id": "noise1"},
+          {"arxiv_id": "gt2"},
+          {"arxiv_id": "noise2"},
+          {"arxiv_id": "gt3"}
+        ]
+      },
+      "top_k_list": [1, 3, 5],
+      "expected": {
+        "successful_queries": 1,
+        "recall@1": [0.3333],
+        "recall@3": [0.6667],
+        "recall@5": [1.0]
+      }
+    }
+  ]
+}

@@ -610,26 +610,21 @@ class CitationRAGSystem:
         rank_dict = {}
         if debug and gt_arxiv_ids:
             found_arxiv_ids = set()
-            total_len = len(sorted_results) + 1
+            total_rank = max(len(sorted_results) - 1, 0)
             for rank, (paper_id, similarity, paper_info) in enumerate(sorted_results):
                 arxiv_id = paper_info.get('arxiv_id')
                 if arxiv_id in gt_arxiv_ids:
                     found_arxiv_ids.add(arxiv_id)
-                    actual_rank = rank + 1
-                    if actual_rank > offset:
-                        rank_value = actual_rank - offset
-                    else:
-                        rank_value = 0
                     rank_dict[arxiv_id] = {
-                        "rank": rank_value,
-                        "total": total_len
+                        "rank": rank,
+                        "total": total_rank
                     }
-            # 没出现的 gt_arxiv_ids 记为 total_len
+            # 没出现的 gt_arxiv_ids 记为 TOTAL_PAPER_NUM
             for arxiv_id in gt_arxiv_ids:
                 if arxiv_id not in found_arxiv_ids:
                     rank_dict[arxiv_id] = {
-                        "rank": total_len,
-                        "total": total_len
+                        "rank": config.TOTAL_PAPER_NUM,
+                        "total": total_rank
                     }
 
         # 应用分页

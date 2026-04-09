@@ -205,6 +205,15 @@ class Planner:
         experience = data.get("experience_replay", "")
         is_complete = bool(data.get("is_complete", data.get("complete", False)))
 
+        if config.VERBOSE:
+            logger.info(f"[VERBOSE Planner] is_complete={is_complete}, subqueries_count={len(subqueries_result)}")
+            for sq in subqueries_result:
+                logger.info(f"[VERBOSE Planner]   └─ {sq.get('link_type','?')} src={sq.get('source_id','?')} k={sq.get('target_k','?')} text=\"{str(sq.get('text',''))[:80]}\"")
+            if checklist:
+                logger.info(f"[VERBOSE Planner]   checklist: {checklist[:150]}{'...' if len(checklist)>150 else ''}")
+            if experience:
+                logger.info(f"[VERBOSE Planner]   experience: {experience[:150]}{'...' if len(experience)>150 else ''}")
+
         # TODO[fix]: Early return if complete with no subqueries
         if is_complete and not subqueries_result:
             logger.info("[✅ Planner] Research marked complete with no new subqueries.")

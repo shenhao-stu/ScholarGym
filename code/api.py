@@ -28,10 +28,15 @@ logger = logging.getLogger(__name__)
 # For Ollama (local), no API key is needed.
 
 PROVIDER_CONFIG = {
-    # OpenAI models (gpt-*)
+    # OpenAI / GPT models (gpt-*)
     "gpt": {
         "api_key": os.getenv("OPENAI_API_KEY", "your-openai-api-key"),
         "base_url": os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
+    },
+    # Claude models (claude-*)
+    "claude": {
+        "api_key": os.getenv("CLAUDE_API_KEY", "your-claude-api-key"),
+        "base_url": os.getenv("CLAUDE_BASE_URL", "https://api.anthropic.com/v1"),
     },
     # DeepSeek models
     "deepseek": {
@@ -46,7 +51,12 @@ PROVIDER_CONFIG = {
     # GLM models (Zhipu AI)
     "glm": {
         "api_key": os.getenv("ZHIPU_API_KEY", "your-zhipu-api-key"),
-        "base_url": os.getenv("ZHIPU_BASE_URL", "https://open.bigmodel.cn/api/paas/v4"),
+        "base_url": os.getenv("ZHIPU_BASE_URL", "https://open.bigmodel.cn/api/paas/v4/"),
+    },
+    # MiniMax models
+    "minimax": {
+        "api_key": os.getenv("MINIMAX_API_KEY", "your-minimax-api-key"),
+        "base_url": os.getenv("MINIMAX_BASE_URL", "https://api.minimax.chat/v1"),
     },
     # Google Gemini (via OpenAI-compatible endpoint)
     "gemini": {
@@ -56,7 +66,7 @@ PROVIDER_CONFIG = {
     # Local Ollama (default)
     "ollama": {
         "api_key": "ollama",
-        "base_url": os.getenv("OLLAMA_URL", "http://localhost:11434") + "/v1",
+        "base_url": os.getenv("OLLAMA_URL", "http://localhost:8001") + "/v1",
     },
 }
 

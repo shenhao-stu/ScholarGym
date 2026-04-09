@@ -1,18 +1,6 @@
 """
 Browser Agent: Access paper content (Async Version)
 """
-# # Testing path issues
-# import sys
-# import os
-
-# # Get the absolute path of the current file
-# current_dir = os.path.dirname(os.path.abspath(__file__))
-# # Assume the target module is in the parent directory
-# parent_dir = os.path.dirname(current_dir)
-
-# if parent_dir not in sys.path:
-#     sys.path.append(parent_dir)
-
 import json
 import logging
 from typing import Dict, List, Tuple, Optional, Any
@@ -540,45 +528,3 @@ class Browser:
         except Exception as e:
             logger.error(f"Failed to fetch full text for {arxiv_id}: {e}")
             return None
-        
-# -------------------------------------------------------------------------
-# Test Function (Async)
-# -------------------------------------------------------------------------
-async def test_browser():
-    browser = Browser(
-        llm_model=config.LLM_MODEL_NAME,
-        gen_params=config.LLM_GEN_PARAMS,
-        is_local=config.IS_LOCAL_LLM
-    )
-    
-    class Paper:
-        def __init__(self, **kwargs):
-            for k, v in kwargs.items():
-                setattr(self, k, v)
-            self.browsing_content = None
-
-    sample_paper = Paper(
-        id="2308.04079",
-        title="3D Gaussian Splatting for Real-Time Radiance Field Rendering",
-        abstract="Radiance Field methods have recently revolutionized novel-view synthesis..."
-    )
-    
-    subquery = "Explain the main contributions of the paper."
-    
-    print("🚀 Starting async browser test...")
-
-    await browser.browse_papers(
-        subquery_text=subquery,
-        paper=sample_paper,
-        iteration_index=4,
-        idx=3,
-        sq_id=2,
-        paper_idx=1,
-        task="Identify and summarize the key contributions of the paper."
-    )
-    
-    print("✅ Browsing Content Result:")
-    print(getattr(sample_paper, "browsing_content", "No content extracted."))
-
-if __name__ == "__main__":
-    asyncio.run(test_browser())

@@ -15,6 +15,41 @@ def parse_xml_tag(response: str, tag: str) -> str:
     match = re.search(f'<{tag}>(.*?)</{tag}>', response, re.DOTALL)
     return match.group(1).strip() if match else ""
 
+
+def _extract_outermost_json(text: str) -> Optional[str]:
+    """Extract the outermost balanced {...} from text.
+
+    Uses a brace-depth counter instead of regex to avoid catastrophic
+    backtracking on large responses.  Returns the matched substring or None.
+    """
+    start = text.find("{")
+    if start == -1:
+        return None
+    depth = 0
+    in_string = False
+    escape = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if escape:
+            escape = False
+            continue
+        if ch == "\\":
+            escape = True
+            continue
+        if ch == '"' and not escape:
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+    return None
+
+
 def parse_json_from_tag(response: str, tag: str) -> Optional[Dict]:
     """
     Parses JSON object from various formats.
@@ -33,9 +68,9 @@ def parse_json_from_tag(response: str, tag: str) -> Optional[Dict]:
             content = json_block_match.group(1).strip()
         else:
             # Try to find direct JSON object (starts with {, ends with })
-            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            json_match = _extract_outermost_json(response)
             if json_match:
-                content = json_match.group(0).strip()
+                content = json_match.strip()
             else:
                 return None
     
@@ -86,24 +121,6 @@ def parse_response_to_keys(response: str) -> List[str]:
             keys.append(cleaned_line)
     
     return keys
-
-
-def extract_ground_truth_titles(ground_truth_papers: List[Dict], gt_labels: List[int]) -> set:
-    """
-    Extract and normalize ground truth paper titles.
-    
-    Args:
-        ground_truth_papers (List[Dict]): List of ground truth papers
-        gt_labels (List[int]): List of labels (1 for relevant, 0 for not)
-        
-    Returns:
-        set: Set of ground truth paper titles
-    """
-    return {
-        paper['title'] 
-        for paper, label in zip(ground_truth_papers, gt_labels) 
-        if label == 1 and 'title' in paper and paper['title'] != "Unknown"
-    }
 
 
 def extract_ground_truth_arxiv_ids(ground_truth_papers: List[Dict], gt_labels: List[int]) -> set:
@@ -173,176 +190,26 @@ def calculate_retrieval_metrics(
     retrieved_matches = len(gt_arxiv_ids.intersection(retrieved_arxiv_ids))
     metrics['retrieval_recall'] = retrieved_matches / len(gt_arxiv_ids) if gt_arxiv_ids else 0.0
     metrics['retrieval_precision'] = retrieved_matches / len(retrieved_arxiv_ids) if retrieved_arxiv_ids else 0.0
+    metrics['retrieval_f1'] = (
+        2 * metrics['retrieval_recall'] * metrics['retrieval_precision'] / (metrics['retrieval_recall'] + metrics['retrieval_precision'])
+        if (metrics['retrieval_recall'] + metrics['retrieval_precision']) > 0 else 0.0
+    )
     metrics['retrieval_matches'] = retrieved_matches
     metrics['retrieved_count'] = len(retrieved_arxiv_ids)
-    
+
     # Selection metrics (if provided)
     if selected_arxiv_ids is not None:
         selected_matches = len(gt_arxiv_ids.intersection(selected_arxiv_ids))
         metrics['recall'] = selected_matches / len(gt_arxiv_ids) if gt_arxiv_ids else 0.0
         metrics['precision'] = selected_matches / len(selected_arxiv_ids) if selected_arxiv_ids else 0.0
+        metrics['f1'] = (
+            2 * metrics['recall'] * metrics['precision'] / (metrics['recall'] + metrics['precision'])
+            if (metrics['recall'] + metrics['precision']) > 0 else 0.0
+        )
         metrics['matches'] = selected_matches
         metrics['selected_count'] = len(selected_arxiv_ids)
-    
+
     return metrics
-    
-def clean_text_content(text: str) -> str:
-    """
-    Clean text content by removing newlines and extra whitespace.
-    
-    Args:
-        text (str): Raw text content to clean
-        
-    Returns:
-        str: Cleaned text content
-    """
-    if not text:
-        return ""
-    
-    # Remove newline characters that break words (e.g., "high-\nlevel" -> "high-level")
-    text = re.sub(r'-\n\s*', '-', text)
-    text = re.sub(r'\n\s*-', '-', text)
-    
-    # Remove all remaining newlines and extra whitespace
-    text = re.sub(r'\n+', ' ', text)
-    text = re.sub(r'\s+', ' ', text)
-    
-    # Strip leading/trailing whitespace
-    return text.strip()
-
-def parse_bib(bib_content: str) -> Dict[str, str]:
-    pattern = re.compile(
-        r"@\w+\{([^,]+),"  # Capture the key
-        r"(?:.|\n)*?"  # Non-greedy match until title
-        r"title\s*=\s*\{((?:[^{}]|\{[^{}]*\})+)\}",  # Capture title with nested braces
-        re.IGNORECASE,
-    )
-
-    result = []
-    matches = pattern.finditer(bib_content)
-    for match in matches:
-        key = match.group(1).strip()
-        title = match.group(2).strip()
-        result.append({
-            'ID': key,
-            'title': title
-        })
-    return result
-
-
-def parse_authors_parsed(authors_parsed: List[List[str]]) -> List[str]:
-    """
-    Parse authors_parsed field into a list of formatted author names.
-    
-    Args:
-        authors_parsed (List[List[str]]): List of author info [last_name, first_name, suffix]
-        
-    Returns:
-        List[str]: List of formatted author names like "First Last" or "First Last Suffix"
-    """
-    if not authors_parsed:
-        return []
-    
-    formatted_authors = []
-    for author_info in authors_parsed:
-        if not author_info:
-            continue
-        
-        # Extract and clean the parts
-        parts = [part.strip() for part in author_info if part.strip()]
-        
-        if len(parts) == 1:
-            # Single name (could be full name or just last name)
-            formatted_authors.append(parts[0])
-        elif len(parts) >= 2:
-            # Standard format: [last_name, first_name, suffix...]
-            # Reorder to "First Last Suffix"
-            name_parts = [parts[1], parts[0]] + parts[2:]  # first, last, suffix...
-            formatted_authors.append(' '.join(name_parts))
-    
-    return formatted_authors
-
-
-def generate_arxiv_url(arxiv_id: str) -> str:
-    """
-    Generate arXiv PDF URL from arXiv ID.
-    
-    Args:
-        arxiv_id (str): arXiv paper ID (e.g., "0704.0001")
-        
-    Returns:
-        str: Complete arXiv PDF URL
-    """
-    return f"http://arxiv.org/pdf/{arxiv_id}"
-
-
-def process_arxiv_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Process a single arXiv metadata entry by cleaning and transforming fields.
-    
-    Args:
-        entry (Dict[str, Any]): Raw arXiv metadata entry
-        
-    Returns:
-        Dict[str, Any]: Processed arXiv metadata entry
-    """
-    processed_entry = entry.copy()
-    
-    # Clean title and abstract
-    if 'title' in processed_entry:
-        processed_entry['title'] = clean_text_content(processed_entry['title'])
-    
-    if 'abstract' in processed_entry:
-        processed_entry['abstract'] = clean_text_content(processed_entry['abstract'])
-    
-    # Use authors_parsed field instead of authors field for better accuracy
-    if 'authors_parsed' in processed_entry:
-        processed_entry['authors'] = parse_authors_parsed(processed_entry['authors_parsed'])
-        # Remove the authors_parsed field since we've converted it to authors
-    elif 'authors' in processed_entry and isinstance(processed_entry['authors'], str):
-        # Fallback to parsing authors string if authors_parsed is not available
-        processed_entry['authors'] = [author.strip() for author in processed_entry['authors'].split(',')]
-    
-    # Add URL field
-    if 'id' in processed_entry:
-        processed_entry['url'] = generate_arxiv_url(processed_entry['id'])
-    
-    return processed_entry
-
-
-def process_arxiv_jsonl_file(input_file: str, output_file: str) -> None:
-    """
-    Process an entire arXiv JSONL file and save the cleaned results.
-    
-    Args:
-        input_file (str): Path to input JSONL file
-        output_file (str): Path to output JSONL file
-    """
-    with open(input_file, 'r', encoding='utf-8') as infile, \
-         open(output_file, 'w', encoding='utf-8') as outfile:
-        
-        for line_num, line in enumerate(infile, 1):
-            line = line.strip()
-            if not line:
-                continue
-                
-            try:
-                # Parse JSON entry
-                entry = json.loads(line)
-                
-                # Process the entry
-                processed_entry = process_arxiv_entry(entry)
-                
-                # Write processed entry to output file
-                json.dump(processed_entry, outfile, ensure_ascii=False)
-                outfile.write('\n')
-                
-            except json.JSONDecodeError as e:
-                print(f"Error parsing JSON at line {line_num}: {e}")
-                continue
-            except Exception as e:
-                print(f"Error processing entry at line {line_num}: {e}")
-                continue
 
 
 class AgentTraceRecorder:
@@ -655,18 +522,3 @@ class CheckpointManager:
         """Check if a query index has been processed."""
         return idx in self.processed_indices
 
-
-# Example usage
-if __name__ == "__main__":
-    # Process the arXiv metadata file
-    # input_file = "datasets/arxiv/arxiv-metadata-250704.jsonl"
-    # output_file = "datasets/arxiv/cleaned-arxiv-metadata-250704.jsonl"
-    
-    # print("Processing arXiv metadata file...")
-    # process_arxiv_jsonl_file(input_file, output_file)
-    # print(f"Processed file saved to: {output_file}") 
-
-    with open("datasets/survey/tex/arXiv-2404.04925/custom.bib", "r", encoding="utf-8") as f:
-        content = f.read()
-    result = parse_bib(content)
-    print(result)

@@ -1,0 +1,1 @@
+{"query": "Can you tell me some papers about hybrid architectures in reconstruction-based techniques?", "cited_paper": [{"arxiv_id": "2009.02040", "title": "Multivariate Time-series Anomaly Detection via Graph Attention Network", "year": 2020}], "gt_label": [1], "date": "2020-09", "source": "PASA_AutoScholar", "qid": "AutoScholarQuery_test_0", "valid": true}

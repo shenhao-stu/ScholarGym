@@ -6,3 +6,12 @@ __pycache__/
 eval*/
 scholargym_paper_db.json
 scripts/
+
+# Large data files
+*.pkl
+*.pt
+*.bin
+*.safetensors
+
+# Paper directory
+paper/

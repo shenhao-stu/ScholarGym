@@ -29,11 +29,30 @@ def load_config_from_path(config_path: str):
     """
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"Config file not found: {config_path}")
-    
+
+    # First, ensure the base config module is loaded so that
+    # custom configs can do `from config import *` to inherit defaults.
+    base_config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.py')
+    if os.path.abspath(config_path) != os.path.abspath(base_config_path):
+        # Load the base config first under "config" so the custom file can import from it
+        if "config" not in sys.modules:
+            base_spec = importlib.util.spec_from_file_location("config", base_config_path)
+            if base_spec and base_spec.loader:
+                base_module = importlib.util.module_from_spec(base_spec)
+                sys.modules["config"] = base_module
+                base_spec.loader.exec_module(base_module)
+
+    # Now load the custom config under a temporary name
     spec = importlib.util.spec_from_file_location("config_custom", config_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Unable to load config from: {config_path}")
+
     config_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(config_module)
-    
+
+    # Register it as the canonical config module
+    sys.modules["config"] = config_module
+
     logger.info(f"[📝] Loaded config from: {config_path}")
     return config_module
 
@@ -180,11 +199,13 @@ class CitationEvaluator:
                 # Selection metrics (after selector filtering)
                 "recall": metrics['recall'],
                 "precision": metrics['precision'],
+                "f1": metrics.get('f1', 0.0),
                 "matches": metrics['matches'],
                 "selected_count": metrics['selected_count'],
                 # Retrieval metrics (before selector filtering)
                 "retrieval_recall": metrics['retrieval_recall'],
                 "retrieval_precision": metrics['retrieval_precision'],
+                "retrieval_f1": metrics.get('retrieval_f1', 0.0),
                 "retrieval_matches": metrics['retrieval_matches'],
                 "retrieved_count": metrics['retrieved_count'],
                 # Detailed metrics
@@ -311,7 +332,7 @@ class CitationEvaluator:
                             checkpoint_manager.append_result(query_result)
                         
                         # Collect metrics by iteration (unified approach)
-                        metric_names = ['recall', 'precision', 'retrieval_recall', 'retrieval_precision', 'missed_gt_ratio']
+                        metric_names = ['recall', 'precision', 'f1', 'retrieval_recall', 'retrieval_precision', 'retrieval_f1', 'missed_gt_ratio']
                         metrics_by_iter = {name: {} for name in metric_names}
                         
                         for res in query_result['iteration_results']:
@@ -412,48 +433,17 @@ class CitationEvaluator:
                 continue
             
         if workflow == 'deep_research':
+            # Average all per-iteration and per-phase metric lists
+            avg_prefixes = (
+                'recall_iter_', 'precision_iter_', 'f1_iter_',
+                'retrieval_recall_iter_', 'retrieval_precision_iter_', 'retrieval_f1_iter_',
+                'missed_gt_ratio_iter_', 'avg_distance_iter_',
+                'discarded_ratio_iter_', 'discarded_total_count_iter_',
+            )
             for key in list(results.keys()):
-                if key.startswith('recall_iter_'):
-                    avg_key = f'avg_{key}'
-                    results[avg_key] = np.mean(results[key]) if results[key] else 0.0
-                
-                # 计算各轮次平均 selection precision
-                elif key.startswith('precision_iter_'):
-                    avg_key = f'avg_{key}'
-                    results[avg_key] = np.mean(results[key]) if results[key] else 0.0
-                
-                elif key.startswith('retrieval_recall_iter_'):
-                    avg_key = f'avg_{key}'
-                    results[avg_key] = np.mean(results[key]) if results[key] else 0.0
-                
-                # 计算各轮次平均 retrieval precision
-                elif key.startswith('retrieval_precision_iter_'):
-                    avg_key = f'avg_{key}'
-                    results[avg_key] = np.mean(results[key]) if results[key] else 0.0
-
-                # 计算各阶段平均耗时
-                elif key.endswith('_during'):
-                    avg_key = f'avg_{key}'
-                    results[avg_key] = np.mean(results[key]) if results[key] else 0.0
-                
-                # 计算各轮次平均 avg_distance
-                elif key.startswith('avg_distance_iter_'):
-                    avg_key = f'avg_{key}'
-                    results[avg_key] = np.mean(results[key]) if results[key] else 0.0
-                
-                # 计算各轮次平均 discarded_ratio
-                elif key.startswith('discarded_ratio_iter_'):
-                    avg_key = f'avg_{key}'
-                    results[avg_key] = np.mean(results[key]) if results[key] else 0.0
-                
-                # 计算各轮次平均 discarded_total_count
-                elif key.startswith('discarded_total_count_iter_'):
-                    avg_key = f'avg_{key}'
-                    results[avg_key] = np.mean(results[key]) if results[key] else 0.0
-
-                elif key.startswith('missed_gt_ratio_iter_'):
-                    avg_key = f'avg_{key}'
-                    results[avg_key] = np.mean(results[key]) if results[key] else 0.0
+                if any(key.startswith(p) for p in avg_prefixes) or key.endswith('_during'):
+                    if isinstance(results[key], list):
+                        results[f'avg_{key}'] = np.mean(results[key]) if results[key] else 0.0
 
             # 计算各轮次平均 missed_gt_ratio 在轮次上的平均
             missed_gt_ratio_avgs = [v for k, v in results.items() if k.startswith('avg_missed_gt_ratio_iter_')]

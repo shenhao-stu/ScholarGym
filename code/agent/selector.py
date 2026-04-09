@@ -167,6 +167,18 @@ class Selector:
         overview = data.get("overview", "")
         to_browse = data.get("to_browse", {})
         selected = [id_to_paper[pid] for pid in selected_ids if pid in id_to_paper]
+
+        if config.VERBOSE:
+            discarded_ids = set(id_to_paper.keys()) - selected_ids
+            logger.info(f"[VERBOSE Selector] sq={sub_query.id} \"{sub_query.text[:60]}\"")
+            for pid in selected_ids:
+                p = id_to_paper.get(pid)
+                logger.info(f"[VERBOSE Selector]   ✓ {pid} | {getattr(p, 'title', '?')[:70]}")
+            for pid in discarded_ids:
+                p = id_to_paper.get(pid)
+                logger.info(f"[VERBOSE Selector]   ✗ {pid} | {getattr(p, 'title', '?')[:70]}")
+            if overview:
+                logger.info(f"[VERBOSE Selector]   overview: {overview[:150]}{'...' if len(overview)>150 else ''}")
         to_browse_mapped = {
             pid: {
                 "goal": goal, 

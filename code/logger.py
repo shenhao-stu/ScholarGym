@@ -1,13 +1,7 @@
 import logging
 import sys
 import os
-import transformers
 from typing import Optional
-
-def _set_transformers_logging(log_level: Optional[int] = logging.INFO) -> None:
-    transformers.utils.logging.set_verbosity(log_level)
-    transformers.utils.logging.enable_default_handler()
-    transformers.utils.logging.enable_explicit_format()
 
 class LoggerHandler(logging.Handler):
     """A custom logging handler designed for specific logging needs."""

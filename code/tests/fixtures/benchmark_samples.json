@@ -1,0 +1,77 @@
+{
+  "benchmark_entries": [
+    {
+      "id": "gnn_anomaly",
+      "query": "Papers about graph neural networks for anomaly detection",
+      "cited_paper": [
+        {"arxiv_id": "2009.02040", "title": "Paper A", "year": 2020},
+        {"arxiv_id": "1901.00137", "title": "Paper B", "year": 2019},
+        {"arxiv_id": "0000.00000", "title": "Unknown", "year": 2020}
+      ],
+      "gt_label": [1, 1, 0],
+      "date": "2020-09",
+      "source": "test",
+      "qid": "test_0",
+      "valid": true
+    },
+    {
+      "id": "dql_target",
+      "query": "Deep Q-learning target networks",
+      "cited_paper": [
+        {"arxiv_id": "1810.04805", "title": "Paper C", "year": 2018},
+        {"arxiv_id": "2005.14165", "title": "Paper D", "year": 2020}
+      ],
+      "gt_label": [1, 1],
+      "date": "2020-05",
+      "source": "test",
+      "qid": "test_1",
+      "valid": true
+    },
+    {
+      "id": "transformer_nlp",
+      "query": "Transformer architectures for natural language processing",
+      "cited_paper": [
+        {"arxiv_id": "1706.03762", "title": "Attention Is All You Need", "year": 2017},
+        {"arxiv_id": "1810.04805", "title": "BERT", "year": 2018},
+        {"arxiv_id": "2005.14165", "title": "GPT-3", "year": 2020},
+        {"arxiv_id": "9999.99999", "title": "Noise Paper", "year": 2021}
+      ],
+      "gt_label": [1, 1, 1, 0],
+      "date": "2021-01",
+      "source": "test",
+      "qid": "test_2",
+      "valid": true
+    },
+    {
+      "id": "single_gt",
+      "query": "Single ground truth paper query",
+      "cited_paper": [
+        {"arxiv_id": "2101.00001", "title": "Only GT", "year": 2021}
+      ],
+      "gt_label": [1],
+      "date": "2021-06",
+      "source": "test",
+      "qid": "test_3",
+      "valid": true
+    },
+    {
+      "id": "all_noise",
+      "query": "Query with no ground truth papers",
+      "cited_paper": [
+        {"arxiv_id": "0000.00001", "title": "Noise 1", "year": 2020},
+        {"arxiv_id": "0000.00002", "title": "Noise 2", "year": 2020}
+      ],
+      "gt_label": [0, 0],
+      "date": "2020-01",
+      "source": "test",
+      "qid": "test_4",
+      "valid": true
+    }
+  ],
+  "gt_id_sets": {
+    "set_a": ["gt1", "gt2", "gt3"],
+    "set_b": ["gt1", "gt2", "gt3", "gt4", "gt5"],
+    "single": ["gt1"],
+    "large": ["gt1", "gt2", "gt3", "gt4", "gt5", "gt6", "gt7", "gt8", "gt9", "gt10"]
+  }
+}
