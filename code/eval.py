@@ -419,8 +419,10 @@ class CitationEvaluator:
                             results[f'recall@{k}'].append(recall_k)
                             results[f'precision@{k}'].append(precision_k)
                         
+            except (KeyboardInterrupt, SystemExit):
+                raise
             except Exception as e:
-                logger.warning(f"[💢]Failed to evaluate query {query_data.get('query', 'N/A')[:30]}: {e}")
+                logger.warning(f"[💢]Failed to evaluate query {query_data.get('query', 'N/A')[:30]}: {type(e).__name__}: {e}")
                 continue
             
         total_queries = results['total_queries']
