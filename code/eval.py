@@ -126,7 +126,7 @@ class CitationEvaluator:
             idx=idx,
         )
         
-        # TODO[fix]: Handle workflow failure, early stop
+        # Handle workflow failure
         if workflow_results is None:
             logger.warning(f"[❌] Query {idx} failed - workflow returned None")
             return None
@@ -272,7 +272,7 @@ class CitationEvaluator:
         logger.info(f"Evaluating {len(benchmark_data)} queries with results_per_query={results_per_query} (using top_k={top_k_list} for simple workflow), max_iterations={max_iterations}")
         logger.info(f"Using prompt type: {self.prompt_type}\nUsing search method: {self.search_method}\nUsing workflow: {workflow}")
 
-        # TODO[resume]: Initialize checkpoint manager
+        # Initialize checkpoint manager for resume support
         checkpoint_manager = None
         if enable_resume and detailed_results_file:
             checkpoint_manager = CheckpointManager(detailed_results_file)
@@ -293,7 +293,7 @@ class CitationEvaluator:
                 results[f'recall@{k}'] = []
                 results[f'precision@{k}'] = []
         
-        # TODO[resume]: Rebuild statistics from checkpoint if exists
+        # Rebuild statistics from checkpoint if exists
         if checkpoint_manager and checkpoint_manager.cached_results:
             checkpoint_manager.rebuild_statistics(
                 results=results,
@@ -303,7 +303,7 @@ class CitationEvaluator:
             )
         
         for idx, query_data in enumerate(tqdm(benchmark_data, desc="Evaluating queries")):
-            # TODO[resume]: Skip already processed queries
+            # Skip already processed queries
             if checkpoint_manager and checkpoint_manager.is_processed(idx):
                 logger.info(f"[⏭️] Skipping already processed query {idx}")
                 continue
@@ -318,7 +318,7 @@ class CitationEvaluator:
                         results['successful_queries'] += 1
                         results['detailed_results'].append(query_result)
                         
-                        # TODO[resume]: Immediately write result to file using checkpoint manager
+                        # Write result to checkpoint file immediately
                         if checkpoint_manager:
                             checkpoint_manager.append_result(query_result)
                         
@@ -403,7 +403,7 @@ class CitationEvaluator:
                         results['successful_queries'] += 1
                         results['detailed_results'].append(query_result)
                         
-                        # TODO[resume]: Immediately write result to file using checkpoint manager
+                        # Write result to checkpoint file immediately
                         if checkpoint_manager:
                             checkpoint_manager.append_result(query_result)
                         

@@ -148,7 +148,7 @@ class DeepResearchWorkflow:
                 'checklist': checklist,
             })
 
-            # TODO[fix]: Handle completion scenarios, early stop
+            # Handle completion scenarios
             if is_complete:
                 if final_selected_papers:
                     logger.info("[✅] Planner decided research is complete with selected papers.")
@@ -164,7 +164,7 @@ class DeepResearchWorkflow:
 
             # 2) Retrieval via MCP per subquery with target_k and offsets (async)
             async def fetch_for_subquery(sq: SubQuery):
-                # TODO: explain it
+                # Calculate offset from previously retrieved papers for pagination
                 already_states = subquery_states.get(sq.id, [])
                 num_already = sum(len(st.retrieved_papers) for st in already_states)
                 desired_total = sq.target_k

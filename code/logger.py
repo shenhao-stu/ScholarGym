@@ -41,7 +41,6 @@ def get_logger(name: str, level=logging.INFO, log_file=None) -> logging.Logger:
 
     # Defines the format for log messages.
     formatter = logging.Formatter(
-        # fmt="%(asctime)s | %(levelname)s | %(name)s : [Line: %(lineno)d] - %(message)s", # TODO
         fmt="[%(levelname)s|%(filename)s:%(lineno)s] %(asctime)s >> %(message)s", 
         datefmt="%Y-%m-%d %H:%M:%S"
     )
