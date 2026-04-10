@@ -18,17 +18,15 @@ def _run_search(
     capped_top_k = min(top_k, getattr(config, 'MAX_RESULTS_PER_QUERY', top_k))
     if search_method == "vector":
         return rag_system.search_citations_vector(query, top_k=capped_top_k, offset=offset, before_date=before_date, gt_arxiv_ids=gt_arxiv_ids, exclude_arxiv_ids=selected_paper_ids_tracker)
-    if search_method == "bm25":
-        return rag_system.search_citations_bm25(query, top_k=capped_top_k, offset=offset, before_date=before_date, gt_arxiv_ids=gt_arxiv_ids, exclude_arxiv_ids=selected_paper_ids_tracker)
-    # default to hybrid
-    return rag_system.search_citations_hybrid(query, top_k=capped_top_k, before_date=before_date, offset=offset, gt_arxiv_ids=gt_arxiv_ids, exclude_arxiv_ids=selected_paper_ids_tracker)
+    # default to bm25
+    return rag_system.search_citations_bm25(query, top_k=capped_top_k, offset=offset, before_date=before_date, gt_arxiv_ids=gt_arxiv_ids, exclude_arxiv_ids=selected_paper_ids_tracker)
 
 
 def search_papers(
     rag_system: CitationRAGSystem,
     query: str,
     top_k: int = 10,
-    search_method: str = "hybrid",
+    search_method: str = "bm25",
     before_date: Optional[str] = None,
     offset: int = 0,
     gt_arxiv_ids: Optional[Set[str]] = None,
@@ -41,7 +39,7 @@ def search_papers(
         rag_system: An instance of the CitationRAGSystem.
         query: The search query.
         top_k: The number of results to return.
-        search_method: 'vector', 'bm25', or 'hybrid'.
+        search_method: 'vector' or 'bm25'.
         before_date: Optional date to filter results.
         offset: Optional results offset for pagination.
 
@@ -75,7 +73,7 @@ def batch_search_papers(
     rag_system: CitationRAGSystem,
     queries: List[str],
     top_k: int = 10,
-    search_method: str = "hybrid",
+    search_method: str = "bm25",
     before_date: Optional[str] = None,
     offset: int = 0,
 ) -> List[List[Dict]]:

@@ -43,9 +43,6 @@ PLANNER_ABLATION = False
 # --- RAG System Configurations ---
 VECTOR_SEARCH_TOP_K = 10
 BM25_SEARCH_TOP_K = 10
-HYBRID_SEARCH_TOP_K = 10
-HYBRID_VECTOR_WEIGHT = 0.5
-HYBRID_BM25_WEIGHT = 0.5
 
 # --- Evaluation Configurations ---
 EVAL_TOP_K_VALUES = [5, 10, 20]

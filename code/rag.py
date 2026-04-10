@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Citation RAG System for Paper Retrieval.
-Supports BM25 keyword search, Qdrant vector search, and hybrid search.
+Supports BM25 keyword search and Qdrant vector search.
 """
 
 import json
@@ -40,8 +40,8 @@ class CitationRAGSystem:
         """
         Load or build the Qdrant and BM25 indices as needed based on the search method.
         """
-        needs_qdrant = self.search_method in ['vector', 'hybrid']
-        needs_bm25 = self.search_method in ['bm25', 'hybrid']
+        needs_qdrant = self.search_method == 'vector'
+        needs_bm25 = self.search_method == 'bm25'
 
         rebuild_bm25 = needs_bm25 and (rebuild or not os.path.exists(bm25_path))
 
@@ -335,94 +335,6 @@ class CitationRAGSystem:
             for query in queries
         ]
 
-    def search_citations_hybrid(
-        self,
-        query: str,
-        top_k: int = config.HYBRID_SEARCH_TOP_K,
-        vector_weight: float = config.HYBRID_VECTOR_WEIGHT,
-        bm25_weight: float = config.HYBRID_BM25_WEIGHT,
-        before_date: Optional[str] = None,
-        offset: int = 0,
-        gt_arxiv_ids: Optional[Set[str]] = None,
-        exclude_arxiv_ids: Optional[Set[str]] = None,
-        debug: bool = True,
-    ) -> Tuple[List[Tuple[str, float, Dict]], Dict]:
-        """
-        Hybrid search combining Qdrant vector similarity and BM25 keyword matching.
-        Fetches candidates from both methods, normalizes scores, and reranks.
-        """
-        if self.qdrant_vector_store is None or self.bm25_index is None:
-            raise ValueError("Both Qdrant and BM25 indices must be loaded for hybrid search.")
-
-        # Fetch more candidates to allow offset and date filters
-        candidate_pool_size = max(0, top_k + offset)
-        candidate_pool_size = candidate_pool_size * 2 if candidate_pool_size > 0 else top_k * 2
-
-        # Fetch candidates from both search methods (without debug metrics — we compute our own)
-        vector_results, _ = self.search_citations_vector(
-            query, candidate_pool_size, offset=0, before_date=before_date,
-            exclude_arxiv_ids=exclude_arxiv_ids, debug=False
-        )
-        bm25_results, _ = self.search_citations_bm25(
-            query, candidate_pool_size, offset=0, before_date=before_date,
-            exclude_arxiv_ids=exclude_arxiv_ids, debug=False
-        )
-
-        combined_scores = {}
-        paper_info_map = {}
-
-        # Normalize and combine vector scores
-        if vector_results:
-            vector_scores = [score for _, score, _ in vector_results]
-            max_vector_score = max(vector_scores) if vector_scores else 1.0
-
-            for paper_id, score, paper_info in vector_results:
-                normalized_score = score / max_vector_score if max_vector_score > 0 else 0
-                combined_scores[paper_id] = vector_weight * normalized_score
-                paper_info_map[paper_id] = paper_info
-
-        # Normalize and combine BM25 scores
-        if bm25_results:
-            bm25_scores = [score for _, score, _ in bm25_results]
-            max_bm25_score = max(bm25_scores) if bm25_scores else 1.0
-
-            for paper_id, score, paper_info in bm25_results:
-                normalized_score = score / max_bm25_score if max_bm25_score > 0 else 0
-
-                if paper_id in combined_scores:
-                    combined_scores[paper_id] += bm25_weight * normalized_score
-                else:
-                    combined_scores[paper_id] = bm25_weight * normalized_score
-                    paper_info_map[paper_id] = paper_info
-
-        # Sort by combined score
-        sorted_papers = sorted(combined_scores.items(), key=lambda x: x[1], reverse=True)
-
-        # Compute rank_dict based on reranked results
-        rank_dict = {}
-        if debug and gt_arxiv_ids:
-            found_arxiv_ids = set()
-            total_rank = max(len(sorted_papers) - 1, 0)
-            for rank, (paper_id, score) in enumerate(sorted_papers):
-                paper_info = paper_info_map[paper_id]
-                arxiv_id = paper_info.get('arxiv_id', paper_id)
-                if arxiv_id in gt_arxiv_ids:
-                    found_arxiv_ids.add(arxiv_id)
-                    rank_dict[arxiv_id] = {"rank": rank, "total": total_rank}
-
-            for arxiv_id in gt_arxiv_ids:
-                if arxiv_id not in found_arxiv_ids:
-                    rank_dict[arxiv_id] = {"rank": config.TOTAL_PAPER_NUM, "total": total_rank}
-
-        # Paginate
-        sliced = sorted_papers[offset : offset + top_k]
-
-        results = []
-        for paper_id, score in sliced:
-            results.append((paper_id, score, paper_info_map[paper_id]))
-
-        return results, rank_dict
-
     def get_paper_by_id(self, paper_id: str) -> Optional[Dict]:
         """Get paper metadata by paper ID."""
         return self.paper_metadata.get(paper_id)
@@ -446,6 +358,4 @@ class CitationRAGSystem:
             methods.append("vector")
         if self.is_bm25_loaded():
             methods.append("bm25")
-        if self.is_loaded() and self.is_bm25_loaded():
-            methods.append("hybrid")
         return methods

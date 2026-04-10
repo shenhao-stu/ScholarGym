@@ -539,7 +539,7 @@ def main():
     parser.add_argument('--device', type=str, default=None, help='Device for embedding model')
     parser.add_argument('--is_local', action='store_true', default=None, help='Use local LLM API')
     parser.add_argument('--prompt_type', type=str, default=None, choices=['complex', 'simple'], help='Type of prompt to use ("complex" or "simple")')
-    parser.add_argument('--search_method', type=str, default=None, choices=['vector', 'bm25', 'hybrid'], help='Search method to use ("vector", "bm25", or "hybrid")')
+    parser.add_argument('--search_method', type=str, default=None, choices=['vector', 'bm25'], help='Search method to use ("vector" or "bm25")')
     parser.add_argument('--workflow', type=str, default=None, choices=['simple', 'deep_research'], help='Evaluation workflow to use')
     parser.add_argument('--max_iterations', type=int, default=None, help='Maximum number of iterations for deep research workflow')
     parser.add_argument('--results_per_query', type=int, default=None, help='Results per query for deep research workflow')

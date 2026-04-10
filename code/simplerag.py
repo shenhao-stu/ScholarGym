@@ -88,14 +88,14 @@ class SimpleWorkflow:
             logger.warning(f"[💢]Failed to generate keys for query: {e}")
             return []
     
-    def run(self, query_data: Dict, top_k: int = 10, search_method: str = 'hybrid', idx: int = None) -> Dict:
+    def run(self, query_data: Dict, top_k: int = 10, search_method: str = 'bm25', idx: int = None) -> Dict:
         """
         Execute simple workflow for a single query.
         
         Args:
             query_data: Query data dictionary containing 'query', 'gt_label', 'cited_paper'
             top_k: Number of top results to retrieve per query key
-            search_method: Search method to use ('vector', 'bm25', or 'hybrid')
+            search_method: Search method to use ('vector' or 'bm25')
             idx: Query index for logging/tracking
             
         Returns:
@@ -118,7 +118,6 @@ class SimpleWorkflow:
         search_functions = {
             'vector': self.rag_system.search_citations_vector,
             'bm25': self.rag_system.search_citations_bm25,
-            'hybrid': self.rag_system.search_citations_hybrid
         }
         
         search_function = search_functions.get(search_method)

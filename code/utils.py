@@ -237,7 +237,7 @@ class AgentTraceRecorder:
             output_dir: Base output directory
             model_name: LLM model name
             prompt_type: Prompt type (e.g., 'complex', 'simple')
-            search_method: Search method (e.g., 'vector', 'bm25', 'hybrid')
+            search_method: Search method (e.g., 'vector', 'bm25')
             workflow: Workflow type (e.g., 'simple', 'deep_research')
             top_k: Top-k value for retrieval
             max_results: Maximum results per query

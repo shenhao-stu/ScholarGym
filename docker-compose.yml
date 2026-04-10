@@ -5,8 +5,8 @@ services:
       - "6433:6333"   # REST API
       - "6434:6334"   # gRPC
     volumes:
-      - qdrant_data:/qdrant/storage
+      - ./data/qdrant_storage:/qdrant/storage
     restart: unless-stopped
-
-volumes:
-  qdrant_data:
+    # NOTE: Qdrant requires a local filesystem (ext4, xfs, etc).
+    # If your project directory is on NFS, change the volume to a local path:
+    #   - /path/to/local/qdrant_storage:/qdrant/storage

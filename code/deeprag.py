@@ -180,7 +180,7 @@ class DeepResearchWorkflow:
                     self.rag_system,
                     sq.text,
                     per_call_k,
-                    getattr(self.rag_system, 'search_method', 'hybrid'),
+                    getattr(self.rag_system, 'search_method', 'bm25'),
                     sq.before_date,
                     num_already,
                     gt_arxiv_ids,

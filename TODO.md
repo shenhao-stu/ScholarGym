@@ -67,8 +67,15 @@
 
 ## 部署 (`docker-compose`, `scripts/`)
 
-- [ ] [P2] 编写 `docker-compose.yml`，管理 Qdrant 服务，数据卷持久化
+- [x] [P2] 编写 `docker-compose.yml`，管理 Qdrant 服务，数据卷持久化
 - [ ] [P2] 编写 `scripts/start_services.sh`：启动 docker-compose + Ollama、健康检查、可选自动构建索引
+
+## 数据分发 (HuggingFace)
+
+- [ ] [P1] 导出 Qdrant 快照并上传 HuggingFace：`curl -X POST http://localhost:6433/collections/paper_knowledge_base/snapshots`，快照文件约 3-4 GB
+- [ ] [P1] 编写 `scripts/restore_qdrant.py`：下载快照 + 恢复到本地 Qdrant，一条命令完成
+- [ ] [P1] 上传预构建的 `bm25_index.pkl`（2 GB）到 HuggingFace，免去用户构建时间
+- [ ] [P2] 更新 README Quick Start：补充 docker-compose + 数据恢复步骤
 - [ ] [P2] 确认 Ollama 是放进 docker-compose 还是保持本地运行
 
 ## 实验 (`eval.py`, `config_*.py`)
