@@ -773,3 +773,67 @@ class TestEvaluateBenchmark:
         assert results["avg_recall_iter_1"] == pytest.approx(
             results["recall_iter_1"][0] / 2
         )
+
+    def test_checkpoint_rebuild_includes_f1(self, tmp_path):
+        """Checkpoint rebuild should include f1 and retrieval_f1 metrics."""
+        cp_file = str(tmp_path / "checkpoint.jsonl")
+        cm = CheckpointManager(cp_file)
+        cm.cached_results = [{
+            "iteration_results": [
+                {
+                    "iter_idx": 1,
+                    "recall": 0.5,
+                    "precision": 0.8,
+                    "f1": 0.615,
+                    "retrieval_recall": 0.6,
+                    "retrieval_precision": 0.9,
+                    "retrieval_f1": 0.72,
+                    "missed_gt_ratio": 0.1,
+                },
+            ],
+        }]
+
+        results = {
+            "total_queries": 1,
+            "successful_queries": 0,
+            "detailed_results": [],
+        }
+        cm.rebuild_statistics(results, workflow="deep_research", max_iterations=1)
+
+        assert "f1_iter_1" in results
+        assert results["f1_iter_1"] == [pytest.approx(0.615, abs=1e-3)]
+        assert "retrieval_f1_iter_1" in results
+        assert results["retrieval_f1_iter_1"] == [pytest.approx(0.72, abs=1e-3)]
+
+    def test_output_dir_simple_vs_deep(self):
+        """Output directory should use topk for simple, maxq+iter for deep_research."""
+        import config
+
+        # Test deep_research
+        config.EVAL_WORKFLOW = 'deep_research'
+        config.MAX_RESULTS_PER_QUERY = 10
+        config.EVAL_MAX_ITERATIONS = 5
+        config.LLM_MODEL_NAME = 'test-model'
+        config.EVAL_PROMPT_TYPE = 'complex'
+        config.EVAL_SEARCH_METHOD = 'bm25'
+        config.ENABLE_REASONING = False
+        config.ENABLE_STRUCTURED_OUTPUT = False
+        config.PLANNER_ABLATION = False
+        config.BROWSER_MODE = 'NONE'
+
+        model_name = config.LLM_MODEL_NAME
+        workflow_params = f"maxq-{config.MAX_RESULTS_PER_QUERY}_iter-{config.EVAL_MAX_ITERATIONS}"
+        expected_deep = f"{model_name}_complex_bm25_deep_research_{workflow_params}_instruct_non-structured_NONE"
+
+        assert "maxq-10" in expected_deep
+        assert "iter-5" in expected_deep
+        assert "topk" not in expected_deep
+
+        # Test simple
+        config.EVAL_WORKFLOW = 'simple'
+        config.EVAL_TOP_K_VALUES = [5, 10, 20]
+        workflow_params = f"topk-{config.EVAL_TOP_K_VALUES}"
+        expected_simple = f"{model_name}_complex_bm25_simple_{workflow_params}_instruct_non-structured_NONE"
+
+        assert "topk-[5, 10, 20]" in expected_simple
+        assert "maxq" not in expected_simple
