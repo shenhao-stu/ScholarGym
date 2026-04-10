@@ -30,7 +30,7 @@
 - [ ] [P1] `deeprag.py:164` 和 `eval.py:145` 缺少 workflow failure / early stop 处理
 - [ ] [P1] checkpoint resume 功能标记为 TODO 但未实现（`eval.py:293/314/324/341/426`）
 - [x] [P1] checkpoint rebuild (`utils.py:558`) 缺少 `f1`/`retrieval_f1` 指标，恢复后的 summary 与 fresh run 不一致
-- [ ] [P2] `eval.py:616` simple workflow 的输出目录未区分，应使用 top_k 而非 results_per_query
+- [x] [P2] `eval.py:616` simple workflow 的输出目录未区分，应使用 top_k 而非 results_per_query
 
 ## 代码质量 (`utils.py`, `prompt.py`, `logger.py`)
 
@@ -187,7 +187,7 @@
 2. ~~代码中内嵌 TODO 注释~~ ✅ 已清理（8 个 stale TODO 全部删除）
 3. ~~`deeprag.py` early stop / failure 处理~~ ✅ 已实现（is_complete + no subqueries 两种场景）
 4. ~~Checkpoint rebuild 缺 `f1`/`retrieval_f1`~~ ✅ 已修复 — `utils.py:417` metric_names 已对齐 `eval.py:326`
-5. [ ] Simple workflow 输出目录未区分，应使用 top_k 而非 results_per_query
+5. ~~Simple workflow 输出目录未区分~~ ✅ 已修复 — simple 用 `topk-`，deep_research 用 `maxq-`+`iter-`
 
 ### Step 6: 代码质量与工具链（~1 天）
 

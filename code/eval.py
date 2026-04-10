@@ -586,15 +586,19 @@ def main():
     if args.browser_mode:
         config.BROWSER_MODE = args.browser_mode
 
-    # Build output directory name from config
+    # Build output directory name from config (distinguish params by workflow)
     reasoning_flag = 'reasoning' if config.ENABLE_REASONING else 'instruct'
     structured_flag = 'structured' if config.ENABLE_STRUCTURED_OUTPUT else 'non-structured'
     ablation_flag = '_ablation' if config.PLANNER_ABLATION else ''
     model_name = config.LLM_MODEL_NAME.split('/')[-1] if '/' in config.LLM_MODEL_NAME else config.LLM_MODEL_NAME
+    if config.EVAL_WORKFLOW == 'simple':
+        workflow_params = f"topk-{config.EVAL_TOP_K_VALUES}"
+    else:
+        workflow_params = f"maxq-{config.MAX_RESULTS_PER_QUERY}_iter-{config.EVAL_MAX_ITERATIONS}"
     current_output_dir = os.path.join(
         config.EVAL_BASE_DIR,
         f"{model_name}_{config.EVAL_PROMPT_TYPE}_{config.EVAL_SEARCH_METHOD}_{config.EVAL_WORKFLOW}"
-        f"_topk-{config.EVAL_TOP_K_VALUES}_maxq-{config.MAX_RESULTS_PER_QUERY}"
+        f"_{workflow_params}"
         f"_{reasoning_flag}_{structured_flag}_{config.BROWSER_MODE}{ablation_flag}"
     )
     os.makedirs(current_output_dir, exist_ok=True)
