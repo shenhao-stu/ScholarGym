@@ -43,27 +43,27 @@
 
 ### Critical — 导致整个 query/workflow 崩溃
 
-- [ ] [P0] `deeprag.py` `run()` 方法零异常保护（line 102-503）：planner/retrieval/selector 任何一步失败，整个 query 崩溃。需在主循环内加 try/except，失败时记录并跳过当前迭代或返回部分结果
+- [x] [P0] `deeprag.py` `run()` 方法零异常保护 — LLM 问题直接扔整个 query，由 eval.py 外层 except 兜底，符合设计意图
 - [ ] [P0] `deeprag.py` `asyncio.gather` 未设 `return_exceptions=True`（line 207/245/274/293）：一个并发任务失败导致所有已完成任务结果丢失
 - [ ] [P0] `utils.py:503` `CheckpointManager.load_checkpoint` JSON 解析无 try/except：checkpoint 文件损坏（如进程被 kill 写了半行）= 全部进度丢失
-- [ ] [P1] Planner/Selector/Summarizer 的 LLM 调用均无异常保护（`planner.py:162`、`selector.py:124`、`summarizer.py:132`）。仅 Browser 有外层 catch 兜底
+- [x] [P1] Planner/Selector/Summarizer 的 LLM 调用 — LLM 问题直接冒泡扔掉 query，api.py 已加网络重试兜底
 
 ### High — 资源泄漏或数据风险
 
-- [ ] [P1] `api.py:130` sync OpenAI client 创建后未关闭（async 版本 line 238 有 `client.close()`，sync 版本没有），长时间运行积累未关闭的 HTTP 连接
-- [ ] [P1] `api.py` 无 timeout 配置（line 134-141）：远程 API hang 住时调用无限等待
-- [x] [P1] `planner.py:228` LLM 输出未验证直接 `int()`：`int(item.get("target_k", ...))` 若 LLM 返回非数字字符串则 ValueError 崩溃
-- [x] [P1] `retrieval_mcp.py:24` hybrid 搜索未传 `gt_arxiv_ids`/`exclude_arxiv_ids`，与 bm25/vector 分支接口不一致
-- [ ] [P2] `rag.py:196` pickle 加载和 `rag.py:109` JSON 加载均无 try/except，文件损坏或 OOM 直接崩溃
+- [x] [P1] `api.py` sync OpenAI client 未关闭 — 改为 `with` 上下文管理器
+- [x] [P1] `api.py` 无 timeout 配置 — 已加 120s timeout
+- [x] [P1] `api.py` 无网络重试 — 已加 3 次指数退避重试（timeout/connection/429/502/503/504）
+- [x] [P1] `planner.py:228` LLM 输出未验证直接 `int()` — 已加 try/except fallback
+- [x] [P1] `retrieval_mcp.py:24` hybrid 搜索未传参数 — 已删除 hybrid
+- [ ] [P2] `rag.py` pickle/JSON 加载无 try/except，文件损坏直接崩溃
 
 ### Medium — 错误被吞或处理不当
 
-- [ ] [P2] `eval.py:442` 过宽的 `except Exception` 吞掉编程错误（TypeError/KeyError 等 bug 被当作"正常失败"跳过）
-- [ ] [P2] `api.py:151-153` 结构化输出失败后静默降级为文本调用，如果失败原因是网络错误则不应重试相同请求
-- [ ] [P2] `browser.py:259` `except (httpx.TimeoutException, httpx.RequestError, Exception)` 中 Exception 使前两个冗余，分类判断失效
-- [ ] [P2] `utils.py:349/352` `process_arxiv_jsonl_file` 错误路径用 `print` 而非 `logger`
-- [ ] [P2] `browser.py:506-509` `_execute_llm_call` debug 文件写入无 try/except（对比 `browse_papers:362-367` 有保护）
-- [ ] [P2] `summarizer.py:72-79` 缓存写入后无 `f.flush()`，且文件写和内存更新非原子（进程被 kill 时数据不一致）
+- [x] [P2] `eval.py` 过宽的 `except Exception` — 已加异常类型名到 log，KeyboardInterrupt 不再被吞
+- [x] [P2] `api.py` 结构化输出失败后静默降级 — 网络错误现在走重试而非直接降级
+- [ ] [P2] `browser.py:259` `except (httpx.TimeoutException, httpx.RequestError, Exception)` 中 Exception 使前两个冗余
+- [ ] [P2] `browser.py:506-509` `_execute_llm_call` debug 文件写入无 try/except
+- [ ] [P2] `summarizer.py:72-79` 缓存写入后无 `f.flush()`，且文件写和内存更新非原子
 
 ## 部署 (`docker-compose`, `scripts/`)
 
@@ -165,19 +165,21 @@
 
 完成标志：`--workflow deep_research --max_iterations 5` 跑完无 warning/error。
 
-### Step 4: 异常处理加固（~1.5 天）
+### Step 4: 异常处理加固 — 部分完成
 
-核心目标：一个 query 失败不能拖垮整个 evaluation。
+已完成：
+- ✅ `api.py` 网络重试（3 次指数退避，覆盖 timeout/connection/429/5xx）
+- ✅ `api.py` timeout 配置（120s）
+- ✅ `api.py` sync client 用 `with` 上下文管理器
+- ✅ `api.py` 结构化输出降级区分网络错误和格式错误
+- ✅ `eval.py` except 加异常类型名，KeyboardInterrupt 不被吞
+- ✅ `eval.py` 平均指标除以 total_queries 而非 successful_queries
+- ✅ `planner.py` target_k int() 加 try/except
+- ✅ 设计决策：LLM 问题直接扔整个 query，不做 partial recovery
 
-1. `deeprag.py` `run()` 主循环加 try/except：planner/retrieval/selector 失败时记录 warning、跳过当前迭代或返回已有部分结果
-2. `asyncio.gather` 全部加 `return_exceptions=True`，调用方检查返回值中的 Exception 并 graceful 处理
-3. `CheckpointManager.load_checkpoint` 加 JSON 解析保护：损坏行跳过，不崩溃
-4. Agent LLM 调用加 try/except：Planner 失败返回空 subqueries + is_complete=True；Selector 失败返回原始 papers；Summarizer 失败返回空 dict
-5. `api.py` sync client 改用 `with` 上下文管理器或手动 close；加 timeout 配置
-6. `planner.py:228` `int()` 加 try/except，回退到 `config.MAX_RESULTS_PER_QUERY`
-7. ~~`retrieval_mcp.py:24` hybrid 搜索补齐参数~~ ✅ 已在 Step 2 完成
-
-完成标志：手动 kill Ollama 再跑 eval，单 query 报 warning 但 evaluation 继续执行不崩溃。
+待完成：
+1. `asyncio.gather` 加 `return_exceptions=True`
+2. `CheckpointManager.load_checkpoint` 加 JSON 解析保护
 
 ### Step 5: 工作流健壮性（~2 天）
 
