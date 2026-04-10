@@ -214,7 +214,6 @@ class Planner:
             if experience:
                 logger.info(f"[VERBOSE Planner]   experience: {experience[:150]}{'...' if len(experience)>150 else ''}")
 
-        # TODO[fix]: Early return if complete with no subqueries
         if is_complete and not subqueries_result:
             logger.info("[✅ Planner] Research marked complete with no new subqueries.")
             return {}, experience, checklist, is_complete
@@ -223,7 +222,7 @@ class Planner:
 
         # Helper to allocate fresh IDs (root id=0 is reserved)
         existing_ids = set(subquery_states.keys())
-        # existing_ids.add(0) # TODO[fix]: planner can continue from the root query
+        existing_ids.add(0)  # root query can be continued
         
         def allocate_new_id() -> int:
             candidate = 1
@@ -234,11 +233,14 @@ class Planner:
 
         for item in subqueries_result:
             text = item.get("text", "")
-            target_k = int(item.get("target_k", config.MAX_RESULTS_PER_QUERY))
+            try:
+                target_k = int(item.get("target_k", config.MAX_RESULTS_PER_QUERY))
+            except (ValueError, TypeError):
+                target_k = config.MAX_RESULTS_PER_QUERY
             link_type = item.get("link_type")
             source_id = item.get("source_id")
 
-            # TODO[Fix]: Validate link_type and text combination
+            # Validate link_type and text combination
             if not ((link_type == "continue") or (link_type in ["derive", "expand"] and text)):
                 continue
 
@@ -246,17 +248,18 @@ class Planner:
                 # Reuse existing subquery id
                 reuse_id = source_id if source_id in existing_ids else None
                 if reuse_id is None:
-                    # If invalid continue, skip
                     continue
-                if len(subquery_states[reuse_id]) >= config.MAX_PAGES_PER_QUERY:
-                    # If already continued max times, skip
-                    continue
-                new_id = reuse_id
-                source = subquery_states[reuse_id][-1].subquery.source_subquery_id
-                text = subquery_states[reuse_id][-1].subquery.text
-                # TODO[fix]: planner can continue from the root query
-                # source = subquery_states[reuse_id][-1].subquery.source_subquery_id if reuse_id != 0 else -1
-                # text = subquery_states[reuse_id][-1].subquery.text if reuse_id != 0 else user_query["query"]
+                if reuse_id == 0:
+                    # Continue from root query — no subquery_states entry for root
+                    new_id = reuse_id
+                    source = -1
+                    text = user_query.get("query", "") if isinstance(user_query, dict) else str(user_query)
+                else:
+                    if len(subquery_states[reuse_id]) >= config.MAX_PAGES_PER_QUERY:
+                        continue
+                    new_id = reuse_id
+                    source = subquery_states[reuse_id][-1].subquery.source_subquery_id
+                    text = subquery_states[reuse_id][-1].subquery.text
             else:
                 # derive or expand => allocate new id
                 new_id = allocate_new_id()

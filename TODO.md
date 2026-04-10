@@ -15,15 +15,15 @@
 ## Agent 模块 (`agent/`)
 
 - [x] [P0] `deeprag.py:364` ID 类型不匹配：`selected_paper_ids_tracker` 和 `final_selected_papers` 去重均改为 `p.arxiv_id`
-- [ ] [P1] `selector.py:47` 返回类型声明为 `Tuple[List[Paper], str]`，实际返回 3 元组
-- [ ] [P1] `planner.py:217` root query continue 未支持：`existing_ids.add(0)` 被注释，planner 尝试 continue root 时可能 KeyError
-- [ ] [P2] `planner.py:208` 缺少 early return：complete 且无 subqueries 时应提前退出
-- [ ] [P2] `planner.py:232` 缺少 link_type 和 text 组合的校验
-- [ ] [P2] `browser.py:204` `soup.head.title` 在 `soup.head` 为 None 时抛 AttributeError
-- [ ] [P2] `browser.py:547-584` 测试代码留在生产模块中，应移至 tests/
+- [x] [P1] `selector.py:47` 返回类型声明为 `Tuple[List[Paper], str]`，实际返回 3 元组
+- [x] [P1] `planner.py:217` root query continue 未支持：`existing_ids.add(0)` 被注释，planner 尝试 continue root 时可能 KeyError
+- [x] [P2] `planner.py:208` 缺少 early return：complete 且无 subqueries 时应提前退出
+- [x] [P2] `planner.py:232` 缺少 link_type 和 text 组合的校验
+- [x] [P2] `browser.py:204` `soup.head.title` 在 `soup.head` 为 None 时抛 AttributeError
+- [x] [P2] `browser.py:547-584` 测试代码留在生产模块中，应移至 tests/（已随死代码清理删除）
 - [ ] [P2] `browser.py:244` 硬编码 30s timeout，无 exponential backoff
 - [ ] [P2] `summarizer.py:72-73` 缓存写入非原子操作（文件写 + 内存更新），非线程安全
-- [ ] [P2] `structures.py:91` `SelectorOutputWithBrowser.to_browse` 声明为 `List[dict]`，实际代码当 `Dict[str, dict]` 用
+- [x] [P2] `structures.py:91` `SelectorOutputWithBrowser.to_browse` 声明为 `List[dict]`，实际代码当 `Dict[str, dict]` 用
 
 ## 工作流 (`deeprag.py`, `simplerag.py`, `eval.py`)
 
@@ -52,7 +52,7 @@
 
 - [ ] [P1] `api.py:130` sync OpenAI client 创建后未关闭（async 版本 line 238 有 `client.close()`，sync 版本没有），长时间运行积累未关闭的 HTTP 连接
 - [ ] [P1] `api.py` 无 timeout 配置（line 134-141）：远程 API hang 住时调用无限等待
-- [ ] [P1] `planner.py:228` LLM 输出未验证直接 `int()`：`int(item.get("target_k", ...))` 若 LLM 返回非数字字符串则 ValueError 崩溃
+- [x] [P1] `planner.py:228` LLM 输出未验证直接 `int()`：`int(item.get("target_k", ...))` 若 LLM 返回非数字字符串则 ValueError 崩溃
 - [x] [P1] `retrieval_mcp.py:24` hybrid 搜索未传 `gt_arxiv_ids`/`exclude_arxiv_ids`，与 bm25/vector 分支接口不一致
 - [ ] [P2] `rag.py:196` pickle 加载和 `rag.py:109` JSON 加载均无 try/except，文件损坏或 OOM 直接崩溃
 
@@ -126,8 +126,8 @@
 
 ### 配置 / 数据问题
 
-- [ ] [P0] `config.py:12` `BENCHMARK_PATH = 'data/scholargym_bench_short.jsonl'` — 该文件不存在，默认 config 无法直接跑，应改为 `scholargym_bench_1q.jsonl` 或 `scholargym_bench_validate.jsonl`
-- [ ] [P1] `rag.py` `__main__` 引用了 `config.CITED_DATA_DIR` 和 `config.QDRANT_PATH`，但这些字段在任何 config 中均未定义，运行会崩溃（随 `__main__` 块一起清理即可）
+- [x] [P0] `config.py:12` `BENCHMARK_PATH = 'data/scholargym_bench_short.jsonl'` — 已改为 `scholargym_bench.jsonl`
+- [x] [P1] `rag.py` `__main__` 引用了 `config.CITED_DATA_DIR` 和 `config.QDRANT_PATH`，但这些字段在任何 config 中均未定义，运行会崩溃（已随 FAISS 清理删除 `__main__` 块）
 - [ ] [P2] `data/scholargym_bench_1q.jsonl`、`data/superlong_bench_300.jsonl` — 无任何 config 或代码引用，确认是否仍需保留
 
 ## 重构（整体规划，均未执行）
@@ -145,41 +145,17 @@
 
 以下按依赖关系和风险排序，每个 Step 内的任务可并行。原则：先修正确性 bug，再统一架构，再补健壮性。
 
-### Step 1: 修 P0 — 影响正确性的 bug（~1 天）
+### Step 1: 修 P0 — 影响正确性的 bug ✅ 已完成
 
-这些是独立的点修，不涉及架构变更，可以直接改。
+### Step 2: 检索架构统一 — Qdrant 收口 ✅ 已完成
 
-| 任务 | 来源 | 预估 |
-|------|------|------|
-| `utils.py:36` 正则 `.*` → `.*?` | 代码质量 | 5 min |
-| `deeprag.py:364` `p.id` → `p.arxiv_id` | Agent 模块 | 15 min，需验证下游 exclude 逻辑 |
-| `rag.py` rank 计算统一为 0-indexed | 检索模块 | 30 min，BM25 和 vector 两处对齐 |
+- FAISS 全部删除，统一为 Qdrant
+- hybrid search 删除，只保留 bm25 和 vector
+- build_vector_db.py 读 config + CLI args
+- docker-compose.yml 创建
+- faiss-gpu / sentence-transformers 从 requirements.txt 移除
 
-完成标志：`python code/eval.py --benchmark_jsonl data/scholargym_bench_validate.jsonl --search_method bm25` 跑通且指标无异常。
-
-### Step 2: 检索架构统一 — Qdrant 收口（~2 天）
-
-这是最大的架构改动，完成后检索模块只有一条 vector 路径。
-
-**2a. `rag.py` 内部统一**
-1. `search_citations_vector()` 改为调用 Qdrant（当前是 LangChain 封装，先保持）
-2. `search_citations_hybrid()` 的 vector 分支改为调用 `search_citations_vector()`（修 P0）
-3. `load_or_build_indices()` 的 vector 分支统一走 `load_qdrant_index()`
-4. 清理 FAISS 相关代码：`build_vector_library()`、`load_vector_library()`、`search_citations()` 及 faiss_id 映射
-5. `is_loaded()` 确认检查 `qdrant_vector_store`
-
-**2b. `build_vector_db.py` 对齐**
-1. 硬编码 URL 改读 `config.py`
-2. Embedding model name 改读 `config.EMBEDDING_MODEL_PATH`（或新增 config 字段）
-
-**2c. 依赖清理**
-1. 确认 `faiss-gpu`/`sentence-transformers` 仅被检索模块引用后，评估是否可从 requirements.txt 移除（如果 BM25-only 场景不需要）
-
-完成标志：`--search_method vector` 和 `--search_method hybrid` 均可跑通；`import faiss` 不再出现在 `rag.py` 中。
-
-### Step 3: Agent 模块修正（~1 天）
-
-修完 Step 1/2 后检索层稳定，开始修 Agent 层。
+### Step 3: Agent 模块修正 ✅ 已完成
 
 1. `selector.py:47` 返回类型对齐（改声明或改实现）
 2. `planner.py:217` 解开 root continue 注释，补 id=0 的处理逻辑
@@ -199,7 +175,7 @@
 4. Agent LLM 调用加 try/except：Planner 失败返回空 subqueries + is_complete=True；Selector 失败返回原始 papers；Summarizer 失败返回空 dict
 5. `api.py` sync client 改用 `with` 上下文管理器或手动 close；加 timeout 配置
 6. `planner.py:228` `int()` 加 try/except，回退到 `config.MAX_RESULTS_PER_QUERY`
-7. `retrieval_mcp.py:24` hybrid 搜索补齐 `gt_arxiv_ids`/`exclude_arxiv_ids` 参数
+7. ~~`retrieval_mcp.py:24` hybrid 搜索补齐参数~~ ✅ 已在 Step 2 完成
 
 完成标志：手动 kill Ollama 再跑 eval，单 query 报 warning 但 evaluation 继续执行不崩溃。
 
@@ -216,17 +192,16 @@
 
 1. `prompt.py` 模板变量加 XML 转义（写个 `escape_xml()` 工具函数）
 2. `logger.py` 改用 `RotatingFileHandler` 或 `deque(maxlen=N)`
-3. `browser.py` 测试代码移到 `tests/test_browser.py`
-4. `utils.py:569` 空 dict 保护
-5. `eval.py:442` 区分可恢复错误和编程 bug（catch 具体异常类型而非裸 Exception）
-6. `utils.py:349/352` print 改 logger
-7. `summarizer.py` 缓存写入加 `f.flush()`
+3. `utils.py:569` 空 dict 保护
+4. `eval.py:442` 区分可恢复错误和编程 bug（catch 具体异常类型而非裸 Exception）
+5. `utils.py:349/352` print 改 logger
+6. `summarizer.py` 缓存写入加 `f.flush()`
 
-### Step 6: 部署一键化（~1 天）
+### Step 7: 部署一键化（~1 天）
 
-1. 编写 `docker-compose.yml`（Qdrant + 可选 Ollama）
+1. ~~编写 `docker-compose.yml`~~ ✅ 已完成
 2. 编写 `scripts/start_services.sh`
-3. 验证 `docker-compose up -d && python code/eval.py --search_method vector` 端到端通过
+3. 验证 `docker compose up -d && python code/eval.py --search_method vector` 端到端通过
 
 ### 后续（视需要）
 

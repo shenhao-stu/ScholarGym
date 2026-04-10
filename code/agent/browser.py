@@ -189,7 +189,7 @@ class Ar5ivParser:
             soup = bs4.BeautifulSoup(html_content, "lxml")
             
             # 1. Parse title
-            title_tag = soup.head.title
+            title_tag = soup.head.title if soup.head else None
             if not title_tag:
                  raise ValueError("Missing <title> tag")
             

@@ -44,7 +44,7 @@ class Selector:
         idx: int = 5,
         old_overview: str = "",
         is_after_browsing: bool = False
-    ) -> Tuple[List[Paper], str]:
+    ) -> Tuple[List[Paper], str, Dict]:
         """
         Decides which papers to maintain for a given subquery.
         
@@ -58,7 +58,7 @@ class Selector:
             old_overview: Previous overview text for incremental update
             
         Returns:
-            (selected_papers, overview)
+            (selected_papers, overview, to_browse_mapped)
         """
         if not config.ENABLE_LLM_FILTERING:
             return papers, ""

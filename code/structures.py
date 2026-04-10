@@ -88,7 +88,7 @@ class SelectorOutputWithBrowser(BaseModel):
     """Minimal structured output for Selector agent."""
     selected: List[str]
     discarded: List[str]
-    to_browse: List[dict]
+    to_browse: Dict[str, str]
     reasons: Dict[str, str]
     overview: str
     
