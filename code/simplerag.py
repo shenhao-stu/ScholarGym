@@ -21,28 +21,23 @@ class SimpleWorkflow:
     """
     Orchestrates a simple query expansion workflow for citation retrieval.
     """
-    def __init__(self, rag_system: CitationRAGSystem, llm_model: str, gen_params: Dict, 
-                 is_local: bool, prompt_type: str = 'simple', trace_recorder=None):
+    def __init__(self, rag_system: CitationRAGSystem, trace_recorder=None):
         """
         Initialize SimpleWorkflow.
-        
+
         Args:
             rag_system: Citation RAG system for retrieval
-            llm_model: LLM model name for query generation
-            gen_params: Generation parameters for LLM
-            is_local: Whether to use local LLM
-            prompt_type: Type of prompt ('simple' or 'complex')
             trace_recorder: Optional trace recorder for debugging and analysis
         """
         self.rag_system = rag_system
-        self.llm_model = llm_model
-        self.gen_params = gen_params
-        self.is_local = is_local
+        self.llm_model = config.LLM_MODEL_NAME
+        self.gen_params = config.LLM_GEN_PARAMS
+        self.is_local = config.IS_LOCAL_LLM
         self.trace_recorder = trace_recorder
-        
+
         self.prompt_template = (
-            SIMPLE_QUERY_GENERATION_PROMPT 
-            if prompt_type == "simple" 
+            SIMPLE_QUERY_GENERATION_PROMPT
+            if config.EVAL_PROMPT_TYPE == "simple"
             else COMPLEX_QUERY_GENERATION_PROMPT
         )
     

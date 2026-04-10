@@ -26,11 +26,11 @@ def _candidate_line(p: Paper) -> str:
 
 class Selector:
     """Selector Agent performing batch decisions for each subquery."""
-    
-    def __init__(self, llm_model: str, gen_params: Dict, is_local: bool, trace_recorder=None):
-        self.llm_model = llm_model
-        self.gen_params = gen_params
-        self.is_local = is_local
+
+    def __init__(self, trace_recorder=None):
+        self.llm_model = config.LLM_MODEL_NAME
+        self.gen_params = config.LLM_GEN_PARAMS
+        self.is_local = config.IS_LOCAL_LLM
         self.trace_recorder = trace_recorder
 
     

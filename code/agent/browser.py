@@ -310,11 +310,11 @@ class Browser:
     Browser Agent responsible for examining papers in depth.
     """
 
-    def __init__(self, llm_model: str, gen_params: Dict, is_local: bool, trace_recorder=None):
-        self.llm_model = llm_model
-        self.gen_params = gen_params.copy()
+    def __init__(self, trace_recorder=None):
+        self.llm_model = config.LLM_MODEL_NAME
+        self.gen_params = config.LLM_GEN_PARAMS.copy()
         self.gen_params['max_tokens'] = config.BROWSER_MAX_TOKENS
-        self.is_local = is_local
+        self.is_local = config.IS_LOCAL_LLM
         self.trace_recorder = trace_recorder
 
     async def browse_papers(

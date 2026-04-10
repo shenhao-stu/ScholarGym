@@ -437,8 +437,7 @@ class TestEvaluateSingleQueryDeepResearch:
 
         from eval import CitationEvaluator
         evaluator = CitationEvaluator(
-            rag_system=mock_rag, llm_model="test", is_local=True,
-            prompt_type="complex", search_method="bm25"
+            rag_system=mock_rag
         )
         return evaluator
 
@@ -466,7 +465,7 @@ class TestEvaluateSingleQueryDeepResearch:
 
         query_data = sample_benchmark_data[0]  # GT = {"2009.02040", "1901.00137"}
         result = evaluator.evaluate_single_query_deep_research(
-            query_data, results_per_query=10, max_iterations=2, idx=0
+            query_data, idx=0
         )
 
         assert result is not None
@@ -533,7 +532,7 @@ class TestEvaluateSingleQueryDeepResearch:
 
         query_data = sample_benchmark_data[3]  # single_gt entry
         result = evaluator.evaluate_single_query_deep_research(
-            query_data, results_per_query=10, max_iterations=1, idx=3
+            query_data, idx=3
         )
 
         assert result is not None
@@ -568,7 +567,7 @@ class TestEvaluateSingleQueryDeepResearch:
 
         query_data = sample_benchmark_data[2]  # transformer_nlp: 3 GT papers
         result = evaluator.evaluate_single_query_deep_research(
-            query_data, results_per_query=10, max_iterations=3, idx=2
+            query_data, idx=2
         )
 
         assert result is not None
@@ -596,8 +595,7 @@ class TestEvaluateBenchmark:
 
         from eval import CitationEvaluator
         evaluator = CitationEvaluator(
-            rag_system=mock_rag, llm_model="test", is_local=True,
-            prompt_type="complex", search_method="bm25"
+            rag_system=mock_rag
         )
         return evaluator
 
@@ -646,10 +644,10 @@ class TestEvaluateBenchmark:
             "executed_queries": [],
         }
 
+        config.EVAL_MAX_ITERATIONS = 2
         results = evaluator.evaluate_benchmark(
             benchmark_data=sample_benchmark_data[:1],
             workflow="deep_research",
-            max_iterations=2,
             enable_resume=False,
         )
 
@@ -716,10 +714,10 @@ class TestEvaluateBenchmark:
             "executed_queries": [],
         }
 
+        config.EVAL_MAX_ITERATIONS = 3
         results = evaluator.evaluate_benchmark(
             benchmark_data=sample_benchmark_data[:1],
             workflow="deep_research",
-            max_iterations=3,
             enable_resume=False,
         )
 

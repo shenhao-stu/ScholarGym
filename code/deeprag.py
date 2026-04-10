@@ -25,22 +25,11 @@ class DeepResearchWorkflow:
     """
     Orchestrates a multi-agent workflow for deep, iterative citation research.
     """
-    def __init__(self, rag_system: CitationRAGSystem, llm_model: str, gen_params: Dict, is_local: bool, trace_recorder=None):
-        self.planner = Planner(llm_model, gen_params, is_local, trace_recorder=trace_recorder)
-        self.selector = Selector(llm_model, gen_params, is_local, trace_recorder=trace_recorder)
-        self.browser = Browser(
-            llm_model,
-            gen_params,
-            is_local,
-            trace_recorder=trace_recorder
-        )
-        self.summarizer = PaperSummarizer(
-            config.SUMMARY_LLM_MODEL_NAME,
-            config.SUMMARY_LLM_GEN_PARAMS,
-            config.SUMMARY_LLM_IS_LOCAL,
-            cache_path=config.SUMMARY_CACHE_PATH,
-            trace_recorder=trace_recorder
-        )
+    def __init__(self, rag_system: CitationRAGSystem, trace_recorder=None):
+        self.planner = Planner(trace_recorder=trace_recorder)
+        self.selector = Selector(trace_recorder=trace_recorder)
+        self.browser = Browser(trace_recorder=trace_recorder)
+        self.summarizer = PaperSummarizer(trace_recorder=trace_recorder)
         self.rag_system = rag_system
         self.trace_recorder = trace_recorder
 
@@ -100,27 +89,25 @@ class DeepResearchWorkflow:
                 papers_for_browsing[sq_id] = list(to_browse.values())
     
     def run(
-        self, 
-        query: Dict, 
+        self,
+        query: Dict,
         gt_arxiv_ids: Set[str] = None,
-        results_per_query: int = None, 
-        max_iterations: int = 3, 
-        idx: int = 1, 
+        idx: int = 1,
     ) -> Optional[Dict]:
         """
         Executes the full Deep Research workflow.
-        
+
         Args:
             query: The initial research query dictionary.
             gt_arxiv_ids: Ground truth arXiv IDs for evaluation metrics.
-            results_per_query: Maximum results per retrieval request (defaults to config.MAX_RESULTS_PER_QUERY).
-            max_iterations: Maximum number of research iterations (replanning loops).
             idx: Query index for case study logging.
 
         Returns:
             Dictionary containing final report, retrieved papers, history, and executed queries.
             Returns None if the workflow fails (e.g., planner marks complete but no papers selected).
         """
+        results_per_query = config.MAX_RESULTS_PER_QUERY
+        max_iterations = config.EVAL_MAX_ITERATIONS
         final_selected_papers: Dict[int, List[Paper]] = {}
         executed_queries: Set[str] = set()
         subquery_states: Dict[int, List[SubQueryState]] = {}

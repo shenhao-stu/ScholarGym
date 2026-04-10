@@ -16,19 +16,12 @@ logger = get_logger(__name__, log_file='./log/summarizer.log')
 
 class PaperSummarizer:
     """Summarizes paper abstracts, with JSONL file for caching."""
-    
-    def __init__(
-        self,
-        llm_model: str,
-        gen_params: Dict,
-        is_local: bool,
-        cache_path: str = "summary_cache.jsonl",
-        trace_recorder=None
-    ):
-        self.llm_model = llm_model
-        self.gen_params = gen_params
-        self.is_local = is_local
-        self.cache_path = cache_path
+
+    def __init__(self, trace_recorder=None):
+        self.llm_model = config.SUMMARY_LLM_MODEL_NAME
+        self.gen_params = config.SUMMARY_LLM_GEN_PARAMS
+        self.is_local = config.SUMMARY_LLM_IS_LOCAL
+        self.cache_path = config.SUMMARY_CACHE_PATH
         self.summary_cache = self._load_cache()
         self.trace_recorder = trace_recorder
 

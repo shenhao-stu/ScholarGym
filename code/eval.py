@@ -51,43 +51,43 @@ def load_config_from_path(config_path: str):
     config_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(config_module)
 
-    # Register it as the canonical config module
-    sys.modules["config"] = config_module
+    # Copy all public attributes from the custom config INTO the existing
+    # config module object.  This is critical: by the time main() calls us,
+    # every downstream module (deeprag, agent/*, simplerag, …) has already
+    # executed `import config` and holds a reference to the *original* module
+    # object.  Replacing sys.modules["config"] would leave those references
+    # stale.  Updating in-place ensures every module sees the new values.
+    existing_config = sys.modules["config"]
+    for attr in dir(config_module):
+        if not attr.startswith('_'):
+            setattr(existing_config, attr, getattr(config_module, attr))
 
     logger.info(f"[📝] Loaded config from: {config_path}")
-    return config_module
+    return existing_config
 
 class CitationEvaluator:
-    def __init__(self, rag_system: CitationRAGSystem, llm_model: str = config.LLM_MODEL_NAME, 
-                 is_local: bool = config.IS_LOCAL_LLM, prompt_type: str = config.EVAL_PROMPT_TYPE, 
-                 search_method: str = config.EVAL_SEARCH_METHOD, trace_recorder=None):
+    def __init__(self, rag_system: CitationRAGSystem, trace_recorder=None):
         self.rag_system = rag_system
-        self.llm_model = llm_model
-        self.is_local = is_local
-        self.prompt_type = prompt_type
-        self.search_method = search_method
+        self.llm_model = config.LLM_MODEL_NAME
+        self.is_local = config.IS_LOCAL_LLM
+        self.prompt_type = config.EVAL_PROMPT_TYPE
+        self.search_method = config.EVAL_SEARCH_METHOD
         self.gen_params = config.LLM_GEN_PARAMS
         self.trace_recorder = trace_recorder
-        
+
         # Validate search method
         available_methods = self.rag_system.get_available_search_methods()
-        if search_method not in available_methods:
-            raise ValueError(f"Search method '{search_method}' not available. Available methods: {available_methods}")
-        
+        if self.search_method not in available_methods:
+            raise ValueError(f"Search method '{self.search_method}' not available. Available methods: {available_methods}")
+
         # Initialize workflows
         self.simple_workflow = SimpleWorkflow(
             rag_system=self.rag_system,
-            llm_model=self.llm_model,
-            gen_params=self.gen_params,
-            is_local=self.is_local,
-            prompt_type=self.prompt_type
+            trace_recorder=trace_recorder
         )
-        
+
         self.deep_research_workflow = DeepResearchWorkflow(
             rag_system=self.rag_system,
-            llm_model=self.llm_model,
-            gen_params=self.gen_params,
-            is_local=self.is_local,
             trace_recorder=trace_recorder
         )
 
@@ -102,19 +102,15 @@ class CitationEvaluator:
         return benchmark_data
 
     def evaluate_single_query_deep_research(
-        self, 
-        query_data: Dict, 
-        results_per_query: int = None, 
-        max_iterations: int = 3, 
+        self,
+        query_data: Dict,
         idx: int = 1
     ) -> Dict:
         """
         Evaluate a single benchmark query using the Deep Research workflow.
-        
+
         Args:
             query_data: Query data dictionary
-            results_per_query: Number of results per retrieval (defaults to config.MAX_RESULTS_PER_QUERY)
-            max_iterations: Maximum iterations for deep research
             idx: Query index for logging
         """
         query = query_data['query']
@@ -125,10 +121,8 @@ class CitationEvaluator:
             return None
 
         workflow_results = self.deep_research_workflow.run(
-            query_data, 
+            query_data,
             gt_arxiv_ids=gt_arxiv_ids,
-            results_per_query=results_per_query,
-            max_iterations=max_iterations,
             idx=idx,
         )
         
@@ -256,27 +250,25 @@ class CitationEvaluator:
         }
 
     def evaluate_benchmark(
-        self, 
-        benchmark_data: List[Dict], 
-        workflow: str = 'simple', 
-        top_k_list: List[int] = None, 
-        results_per_query: int = None,
-        max_iterations: int = 3,
+        self,
+        benchmark_data: List[Dict],
+        workflow: str = 'simple',
+        top_k_list: List[int] = None,
         detailed_results_file: str = None,
         enable_resume: bool = True
     ) -> Dict:
         """
         Evaluate the entire benchmark dataset.
-        
+
         Args:
             benchmark_data: List of benchmark queries
             workflow: 'simple' or 'deep_research'
             top_k_list: Top-k values for simple workflow (ignored for deep_research)
-            results_per_query: Results per query for deep_research (defaults to config.MAX_RESULTS_PER_QUERY)
-            max_iterations: Maximum iterations for deep_research workflow
             detailed_results_file: Path to save detailed results incrementally (JSONL format)
             enable_resume: Enable resume from checkpoint
         """
+        max_iterations = config.EVAL_MAX_ITERATIONS
+        results_per_query = config.MAX_RESULTS_PER_QUERY
         logger.info(f"Evaluating {len(benchmark_data)} queries with results_per_query={results_per_query} (using top_k={top_k_list} for simple workflow), max_iterations={max_iterations}")
         logger.info(f"Using prompt type: {self.prompt_type}\nUsing search method: {self.search_method}\nUsing workflow: {workflow}")
 
@@ -319,9 +311,7 @@ class CitationEvaluator:
             try:
                 if workflow == 'deep_research':
                     query_result = self.evaluate_single_query_deep_research(
-                        query_data, 
-                        results_per_query=results_per_query,
-                        max_iterations=max_iterations,
+                        query_data,
                         idx=idx,
                     )
                     if query_result:
@@ -558,38 +548,56 @@ def main():
     parser.add_argument('--browser_mode', type=str, default=None, choices=['PRE_ENRICH', 'REFRESH', 'INCREMENTAL', 'NONE'], help='Browser mode for deep research workflow')
 
     args = parser.parse_args()
-    
-    # Load config from custom path if specified
-    cfg = config
-    config_path = None
-    if args.config:
-        config_path = args.config
-        cfg = load_config_from_path(config_path)
-    
-    # Use command-line args if provided, otherwise fall back to loaded config (cfg)
-    paper_db = args.paper_db or cfg.PAPER_DB_PATH
-    benchmark_jsonl = args.benchmark_jsonl or cfg.BENCHMARK_PATH
-    embedding_model = args.embedding_model or cfg.EMBEDDING_MODEL_PATH
-    llm_model = args.llm_model or cfg.LLM_MODEL_NAME
-    faiss_path = args.faiss_path or cfg.FAISS_PATH_PREFIX
-    bm25_path = args.bm25_path or cfg.BM25_PATH
-    output_dir = args.output_dir or cfg.EVAL_BASE_DIR
-    top_k = args.top_k or cfg.EVAL_TOP_K_VALUES
-    device = args.device or cfg.DEVICE
-    is_local = args.is_local if args.is_local is not None else cfg.IS_LOCAL_LLM  # bool needs explicit None check
-    prompt_type = args.prompt_type or cfg.EVAL_PROMPT_TYPE
-    search_method = args.search_method or cfg.EVAL_SEARCH_METHOD
-    workflow = args.workflow or cfg.EVAL_WORKFLOW
-    max_iterations = args.max_iterations or cfg.EVAL_MAX_ITERATIONS
-    results_per_query = args.results_per_query or cfg.MAX_RESULTS_PER_QUERY
-    browser_mode = args.browser_mode or cfg.BROWSER_MODE
 
-    # Use loaded config (cfg) for flags, not global config
-    reasoning_flag = 'reasoning' if cfg.ENABLE_REASONING else 'instruct'
-    structured_flag = 'structured' if cfg.ENABLE_STRUCTURED_OUTPUT else 'non-structured'
-    ablation_flag = '_ablation' if getattr(cfg, 'PLANNER_ABLATION', False) else ''
-    model_name = llm_model.split('/')[-1] if '/' in llm_model else llm_model
-    current_output_dir = os.path.join(output_dir, f"{model_name}_{prompt_type}_{search_method}_{workflow}_topk-{top_k}_maxq-{results_per_query}_{reasoning_flag}_{structured_flag}_{browser_mode}{ablation_flag}")
+    # Load config from custom path if specified (updates config module in-place)
+    if args.config:
+        load_config_from_path(args.config)
+
+    # CLI args override config values (only when explicitly provided)
+    if args.paper_db:
+        config.PAPER_DB_PATH = args.paper_db
+    if args.benchmark_jsonl:
+        config.BENCHMARK_PATH = args.benchmark_jsonl
+    if args.embedding_model:
+        config.EMBEDDING_MODEL_PATH = args.embedding_model
+    if args.llm_model:
+        config.LLM_MODEL_NAME = args.llm_model
+    if args.faiss_path:
+        config.FAISS_PATH_PREFIX = args.faiss_path
+    if args.bm25_path:
+        config.BM25_PATH = args.bm25_path
+    if args.output_dir:
+        config.EVAL_BASE_DIR = args.output_dir
+    if args.top_k:
+        config.EVAL_TOP_K_VALUES = args.top_k
+    if args.device:
+        config.DEVICE = args.device
+    if args.is_local is not None:
+        config.IS_LOCAL_LLM = args.is_local
+    if args.prompt_type:
+        config.EVAL_PROMPT_TYPE = args.prompt_type
+    if args.search_method:
+        config.EVAL_SEARCH_METHOD = args.search_method
+    if args.workflow:
+        config.EVAL_WORKFLOW = args.workflow
+    if args.max_iterations:
+        config.EVAL_MAX_ITERATIONS = args.max_iterations
+    if args.results_per_query:
+        config.MAX_RESULTS_PER_QUERY = args.results_per_query
+    if args.browser_mode:
+        config.BROWSER_MODE = args.browser_mode
+
+    # Build output directory name from config
+    reasoning_flag = 'reasoning' if config.ENABLE_REASONING else 'instruct'
+    structured_flag = 'structured' if config.ENABLE_STRUCTURED_OUTPUT else 'non-structured'
+    ablation_flag = '_ablation' if config.PLANNER_ABLATION else ''
+    model_name = config.LLM_MODEL_NAME.split('/')[-1] if '/' in config.LLM_MODEL_NAME else config.LLM_MODEL_NAME
+    current_output_dir = os.path.join(
+        config.EVAL_BASE_DIR,
+        f"{model_name}_{config.EVAL_PROMPT_TYPE}_{config.EVAL_SEARCH_METHOD}_{config.EVAL_WORKFLOW}"
+        f"_topk-{config.EVAL_TOP_K_VALUES}_maxq-{config.MAX_RESULTS_PER_QUERY}"
+        f"_{reasoning_flag}_{structured_flag}_{config.BROWSER_MODE}{ablation_flag}"
+    )
     os.makedirs(current_output_dir, exist_ok=True)
 
     # Save config file for reproduction
@@ -603,60 +611,53 @@ def main():
         logger.warning(f"[⚠️] Failed to save config file: {e}")
 
     config.CASE_STUDY_OUTPUT_DIR = os.path.join(current_output_dir, "case_study")
-    # TODO: different workflow should have different output dir, simple workflow use top_k instead of results_per_query
 
     logger.info("[🚀]Initializing RAG system...")
     rag_system = CitationRAGSystem(
-        embedding_model_path=embedding_model,
-        device=device,
-        search_method=search_method
+        embedding_model_path=config.EMBEDDING_MODEL_PATH,
+        device=config.DEVICE,
+        search_method=config.EVAL_SEARCH_METHOD
     )
-    
+
     rag_system.load_or_build_indices(
-        paper_db_path=paper_db,
-        faiss_path=faiss_path,
-        bm25_path=bm25_path,
+        paper_db_path=config.PAPER_DB_PATH,
+        faiss_path=config.FAISS_PATH_PREFIX,
+        bm25_path=config.BM25_PATH,
         rebuild=args.rebuild_index
     )
-    
+
     # Initialize trace recorder if enabled
     trace_recorder = None
-    if cfg.SAVE_AGENT_TRACES:
+    if config.SAVE_AGENT_TRACES:
         trace_recorder = AgentTraceRecorder(
-            output_dir=output_dir,
-            model_name=llm_model,
-            prompt_type=prompt_type,
-            search_method=search_method,
-            workflow=workflow,
-            top_k=top_k,
-            max_results=results_per_query,
-            enable_reasoning=cfg.ENABLE_REASONING,
-            enable_structured=cfg.ENABLE_STRUCTURED_OUTPUT
+            output_dir=config.EVAL_BASE_DIR,
+            model_name=config.LLM_MODEL_NAME,
+            prompt_type=config.EVAL_PROMPT_TYPE,
+            search_method=config.EVAL_SEARCH_METHOD,
+            workflow=config.EVAL_WORKFLOW,
+            top_k=config.EVAL_TOP_K_VALUES,
+            max_results=config.MAX_RESULTS_PER_QUERY,
+            enable_reasoning=config.ENABLE_REASONING,
+            enable_structured=config.ENABLE_STRUCTURED_OUTPUT
         )
-    
+
     logger.info("[🚀]Initializing evaluator...")
     evaluator = CitationEvaluator(
         rag_system=rag_system,
-        llm_model=llm_model,
-        is_local=is_local,
-        prompt_type=prompt_type,
-        search_method=search_method,
         trace_recorder=trace_recorder
     )
-    
+
     # Load and process benchmark data
-    benchmark_data = evaluator.load_benchmark_data(benchmark_jsonl)
-    
+    benchmark_data = evaluator.load_benchmark_data(config.BENCHMARK_PATH)
+
     detailed_results_file = os.path.join(current_output_dir, 'detailed_results.jsonl')
-    summary_file = os.path.join(output_dir, 'evaluation_summary.jsonl')
-    
+    summary_file = os.path.join(config.EVAL_BASE_DIR, 'evaluation_summary.jsonl')
+
     logger.info("[📈]Starting evaluation...")
     results = evaluator.evaluate_benchmark(
         benchmark_data=benchmark_data,
-        workflow=workflow,
-        top_k_list=top_k,
-        results_per_query=results_per_query,
-        max_iterations=max_iterations,
+        workflow=config.EVAL_WORKFLOW,
+        top_k_list=config.EVAL_TOP_K_VALUES,
         detailed_results_file=detailed_results_file,
         enable_resume=True
     )

@@ -63,7 +63,7 @@ class TestMcpResultsToPapers:
     def _make_workflow(self):
         mock_rag = MagicMock()
         return DeepResearchWorkflow(
-            rag_system=mock_rag, llm_model="test", gen_params={}, is_local=True
+            rag_system=mock_rag
         )
 
     @pytest.mark.parametrize("case", _deeprag_data["mcp_results_to_papers"], ids=_param_id)
@@ -239,7 +239,7 @@ class TestDeepResearchWorkflowRun:
     def _make_workflow(self):
         mock_rag = MagicMock()
         wf = DeepResearchWorkflow(
-            rag_system=mock_rag, llm_model="test", gen_params={}, is_local=True
+            rag_system=mock_rag
         )
         return wf
 
@@ -295,10 +295,11 @@ class TestDeepResearchWorkflowRun:
         self._setup_one_iteration_mocks(wf)
         mock_search.return_value = ([], {})
 
+        config.EVAL_MAX_ITERATIONS = 1
         result = wf.run(
             query={"query": "test query"},
             gt_arxiv_ids={"2001.00001"},
-            max_iterations=1, idx=0,
+            idx=0,
         )
 
         assert result is not None
@@ -314,7 +315,8 @@ class TestDeepResearchWorkflowRun:
         wf.planner.plan_iteration.return_value = ({}, "experience", "checklist", True)
         mock_search.return_value = ([], {})
 
-        result = wf.run(query={"query": "test"}, gt_arxiv_ids={"a1"}, max_iterations=3, idx=0)
+        config.EVAL_MAX_ITERATIONS = 3
+        result = wf.run(query={"query": "test"}, gt_arxiv_ids={"a1"}, idx=0)
         assert result is None
 
     @patch("deeprag.search_papers")
@@ -343,7 +345,8 @@ class TestDeepResearchWorkflowRun:
         )
         mock_search.return_value = ([], {})
 
-        result = wf.run(query={"query": "test"}, gt_arxiv_ids={"a1"}, max_iterations=5, idx=0)
+        config.EVAL_MAX_ITERATIONS = 5
+        result = wf.run(query={"query": "test"}, gt_arxiv_ids={"a1"}, idx=0)
 
         assert result is not None
         plan_stages = [h for h in result["history"] if h["stage"] == "plan"]
@@ -356,7 +359,8 @@ class TestDeepResearchWorkflowRun:
         wf.planner = MagicMock()
         wf.planner.plan_iteration.return_value = ({}, "exp", "checklist", False)
 
-        result = wf.run(query={"query": "test"}, max_iterations=1, idx=0)
+        config.EVAL_MAX_ITERATIONS = 1
+        result = wf.run(query={"query": "test"}, idx=0)
         assert result is None
 
     @patch("deeprag.search_papers")
@@ -386,8 +390,9 @@ class TestDeepResearchWorkflowRun:
         wf.selector.decide_for_subquery = AsyncMock(side_effect=mock_select)
         mock_search.return_value = ([], {})
 
+        config.EVAL_MAX_ITERATIONS = 2
         result = wf.run(
-            query={"query": "test"}, gt_arxiv_ids={"a1", "a2"}, max_iterations=2, idx=0,
+            query={"query": "test"}, gt_arxiv_ids={"a1", "a2"}, idx=0,
         )
 
         selected_ids = {p.id for p in result["selected_papers"]}
@@ -400,8 +405,9 @@ class TestDeepResearchWorkflowRun:
         self._setup_one_iteration_mocks(wf)
         mock_search.return_value = ([], {})
 
+        config.EVAL_MAX_ITERATIONS = 1
         result = wf.run(
-            query={"query": "test"}, gt_arxiv_ids={"a1"}, max_iterations=1, idx=0,
+            query={"query": "test"}, gt_arxiv_ids={"a1"}, idx=0,
         )
 
         select_stages = [h for h in result["history"] if h["stage"] == "select"]
@@ -416,8 +422,9 @@ class TestDeepResearchWorkflowRun:
         self._setup_one_iteration_mocks(wf)
         mock_search.return_value = ([], {})
 
+        config.EVAL_MAX_ITERATIONS = 1
         result = wf.run(
-            query={"query": "test"}, gt_arxiv_ids=set(), max_iterations=1, idx=0,
+            query={"query": "test"}, gt_arxiv_ids=set(), idx=0,
         )
 
         select_stages = [h for h in result["history"] if h["stage"] == "select"]
@@ -453,8 +460,9 @@ class TestDeepResearchWorkflowRun:
         )
         mock_search.return_value = ([], {})
 
+        config.EVAL_MAX_ITERATIONS = 2
         result = wf.run(
-            query={"query": "test"}, gt_arxiv_ids=set(), max_iterations=2, idx=0,
+            query={"query": "test"}, gt_arxiv_ids=set(), idx=0,
         )
 
         plan_stages = [h for h in result["history"] if h["stage"] == "plan"]
@@ -482,8 +490,9 @@ class TestDeepResearchWorkflowRun:
         )
         mock_search.return_value = ([], {})
 
+        config.EVAL_MAX_ITERATIONS = 1
         result = wf.run(
-            query={"query": "test"}, gt_arxiv_ids=set(), max_iterations=1, idx=0,
+            query={"query": "test"}, gt_arxiv_ids=set(), idx=0,
         )
 
         assert "neural network" in result["executed_queries"]
@@ -507,8 +516,9 @@ class TestDeepResearchWorkflowRun:
         wf.selector.decide_for_subquery = AsyncMock(return_value=([p1], "ov", {}))
         mock_search.return_value = ([], {})
 
+        config.EVAL_MAX_ITERATIONS = 2
         result = wf.run(
-            query={"query": "test"}, gt_arxiv_ids=set(), max_iterations=2, idx=0,
+            query={"query": "test"}, gt_arxiv_ids=set(), idx=0,
         )
 
         selected_ids = [p.id for p in result["selected_papers"]]
@@ -521,8 +531,9 @@ class TestDeepResearchWorkflowRun:
         self._setup_one_iteration_mocks(wf)
         mock_search.return_value = ([], {})
 
+        config.EVAL_MAX_ITERATIONS = 1
         result = wf.run(
-            query={"query": "test"}, gt_arxiv_ids=set(), max_iterations=1, idx=0,
+            query={"query": "test"}, gt_arxiv_ids=set(), idx=0,
         )
 
         assert result is not None
@@ -547,8 +558,9 @@ class TestDeepResearchWorkflowRun:
         )
         mock_search.return_value = ([], {})
 
+        config.EVAL_MAX_ITERATIONS = 3
         result = wf.run(
-            query={"query": "test"}, gt_arxiv_ids=set(), max_iterations=3, idx=0,
+            query={"query": "test"}, gt_arxiv_ids=set(), idx=0,
         )
 
         plan_stages = [h for h in result["history"] if h["stage"] == "plan"]
@@ -573,7 +585,7 @@ class TestBrowserModeOrchestration:
     def _make_workflow(self):
         mock_rag = MagicMock()
         return DeepResearchWorkflow(
-            rag_system=mock_rag, llm_model="test", gen_params={}, is_local=True
+            rag_system=mock_rag
         )
 
     def _paper_from_fixture(self, key):
@@ -653,8 +665,9 @@ class TestBrowserModeOrchestration:
             wf.browser = MagicMock()
             wf.browser.browse_papers = AsyncMock(side_effect=mock_browse)
 
+            config.EVAL_MAX_ITERATIONS = 1
             result = wf.run(
-                query={"query": "test"}, gt_arxiv_ids=set(), max_iterations=1, idx=0,
+                query={"query": "test"}, gt_arxiv_ids=set(), idx=0,
             )
 
             assert result is not None
