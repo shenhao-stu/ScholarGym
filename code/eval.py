@@ -423,8 +423,11 @@ class CitationEvaluator:
                 logger.warning(f"[💢]Failed to evaluate query {query_data.get('query', 'N/A')[:30]}: {e}")
                 continue
             
+        total_queries = results['total_queries']
+
         if workflow == 'deep_research':
             # Average all per-iteration and per-phase metric lists
+            # Divide by total_queries (not just successful), treating failed queries as 0
             avg_prefixes = (
                 'recall_iter_', 'precision_iter_', 'f1_iter_',
                 'retrieval_recall_iter_', 'retrieval_precision_iter_', 'retrieval_f1_iter_',
@@ -434,7 +437,7 @@ class CitationEvaluator:
             for key in list(results.keys()):
                 if any(key.startswith(p) for p in avg_prefixes) or key.endswith('_during'):
                     if isinstance(results[key], list):
-                        results[f'avg_{key}'] = np.mean(results[key]) if results[key] else 0.0
+                        results[f'avg_{key}'] = sum(results[key]) / total_queries if total_queries > 0 else 0.0
 
             # 计算各轮次平均 missed_gt_ratio 在轮次上的平均
             missed_gt_ratio_avgs = [v for k, v in results.items() if k.startswith('avg_missed_gt_ratio_iter_')]
@@ -443,8 +446,8 @@ class CitationEvaluator:
 
         else:
             for k in top_k_list:
-                results[f'avg_recall@{k}'] = np.mean(results[f'recall@{k}']) if results[f'recall@{k}'] else 0.0
-                results[f'avg_precision@{k}'] = np.mean(results[f'precision@{k}']) if results[f'precision@{k}'] else 0.0
+                results[f'avg_recall@{k}'] = sum(results[f'recall@{k}']) / total_queries if total_queries > 0 else 0.0
+                results[f'avg_precision@{k}'] = sum(results[f'precision@{k}']) / total_queries if total_queries > 0 else 0.0
         
         return results
 

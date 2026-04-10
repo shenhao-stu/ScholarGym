@@ -657,7 +657,7 @@ class TestEvaluateBenchmark:
         assert "avg_avg_distance_iter_1" in results
         assert results["avg_avg_distance_iter_1"] == pytest.approx(0.8)
         assert "avg_planner_during" in results
-        assert results["avg_planner_during"] == pytest.approx(1.0)
+        assert results["avg_planner_during"] == pytest.approx(2.0)  # sum of 2 iters (1.0+1.0) / 1 query
 
     def test_simple_workflow_metrics(self, sample_benchmark_data):
         evaluator = self._make_evaluator()
@@ -725,3 +725,51 @@ class TestEvaluateBenchmark:
         assert "avg_recall_iter_3" in results
         assert results["avg_recall_iter_1"] == pytest.approx(results["avg_recall_iter_2"])
         assert results["avg_recall_iter_1"] == pytest.approx(results["avg_recall_iter_3"])
+
+    def test_failed_queries_count_as_zero(self, sample_benchmark_data):
+        """Failed queries should dilute averages (divide by total, not successful)."""
+        evaluator = self._make_evaluator()
+
+        # First query succeeds with recall=1.0, second query fails (workflow returns None)
+        evaluator.deep_research_workflow = MagicMock()
+        evaluator.deep_research_workflow.run.side_effect = [
+            {
+                "history": [
+                    {
+                        "stage": "select",
+                        "iter_idx": 1,
+                        "retrieved_papers": {1: [{"arxiv_id": "2009.02040"}]},
+                        "selected_papers": {1: [{"arxiv_id": "2009.02040"}]},
+                        "iteration_metrics": {"discarded_gt_count": 0, "discarded_ratio": 0.0, "discarded_total_count": 0},
+                        "subquery_metrics": {},
+                        "gt_rank": [],
+                        "browsing_arxiv_ids": [],
+                        "avg_distance": 0.8,
+                        "planner_during": 1.0,
+                        "retrieval_during": 2.0,
+                        "selector_during": 3.0,
+                        "browser_during": -1,
+                        "overhead_during": 0.5,
+                        "total_during": 6.5,
+                    },
+                ],
+                "selected_papers": [Paper(id="p1", title="P1", abstract="", arxiv_id="2009.02040")],
+                "executed_queries": [],
+            },
+            None,  # Second query fails
+        ]
+
+        config.EVAL_MAX_ITERATIONS = 1
+        results = evaluator.evaluate_benchmark(
+            benchmark_data=sample_benchmark_data[:2],
+            workflow="deep_research",
+            enable_resume=False,
+        )
+
+        assert results["total_queries"] == 2
+        assert results["successful_queries"] == 1
+        # recall_iter_1 list has 1 entry (only the successful query)
+        # but avg should divide by total_queries=2, not len=1
+        assert results["avg_recall_iter_1"] == pytest.approx(
+            results["recall_iter_1"][0] / 2
+        )
