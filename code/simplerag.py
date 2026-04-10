@@ -116,7 +116,7 @@ class SimpleWorkflow:
         
         # Setup search function based on method
         search_functions = {
-            'vector': self.rag_system.search_citations,
+            'vector': self.rag_system.search_citations_vector,
             'bm25': self.rag_system.search_citations_bm25,
             'hybrid': self.rag_system.search_citations_hybrid
         }

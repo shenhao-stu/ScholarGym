@@ -531,9 +531,7 @@ def main():
     parser.add_argument('--config', type=str, default=None, help='Path to config.py file (if specified, overrides default config)')
     parser.add_argument('--paper_db', type=str, default=None, help='Path to paper database JSON file')
     parser.add_argument('--benchmark_jsonl', type=str, default=None, help='Path to benchmark JSONL file')
-    parser.add_argument('--embedding_model', type=str, default=None, help='Path to embedding model')
     parser.add_argument('--llm_model', type=str, default=None, help='LLM model for query generation')
-    parser.add_argument('--faiss_path', type=str, default=None, help='Path prefix for FAISS index files')
     parser.add_argument('--bm25_path', type=str, default=None, help='Path for BM25 index file')
     parser.add_argument('--output_dir', type=str, default=None, help='Base directory to save evaluation results')
     parser.add_argument('--rebuild_index', action='store_true', help='Force rebuild of indices')
@@ -558,12 +556,8 @@ def main():
         config.PAPER_DB_PATH = args.paper_db
     if args.benchmark_jsonl:
         config.BENCHMARK_PATH = args.benchmark_jsonl
-    if args.embedding_model:
-        config.EMBEDDING_MODEL_PATH = args.embedding_model
     if args.llm_model:
         config.LLM_MODEL_NAME = args.llm_model
-    if args.faiss_path:
-        config.FAISS_PATH_PREFIX = args.faiss_path
     if args.bm25_path:
         config.BM25_PATH = args.bm25_path
     if args.output_dir:
@@ -614,14 +608,11 @@ def main():
 
     logger.info("[🚀]Initializing RAG system...")
     rag_system = CitationRAGSystem(
-        embedding_model_path=config.EMBEDDING_MODEL_PATH,
-        device=config.DEVICE,
         search_method=config.EVAL_SEARCH_METHOD
     )
 
     rag_system.load_or_build_indices(
         paper_db_path=config.PAPER_DB_PATH,
-        faiss_path=config.FAISS_PATH_PREFIX,
         bm25_path=config.BM25_PATH,
         rebuild=args.rebuild_index
     )

@@ -12,12 +12,14 @@ BENCHMARK_PATH = 'data/scholargym_bench.jsonl'
 EVAL_BASE_DIR = 'eval_results'
 
 # --- Index Paths ---
-FAISS_PATH_PREFIX = 'data/faiss_index'
 BM25_PATH = 'data/bm25_index.pkl'
 DEFAULT_SEARCH_METHOD = 'bm25'
 
+# --- Qdrant Vector Database ---
+QDRANT_COLLECTION_NAME = "paper_knowledge_base"
+QDRANT_EMBEDDING_MODEL = "qwen3-embedding:0.6b"  # Ollama embedding model name
+
 # --- Model Configurations ---
-EMBEDDING_MODEL_PATH = 'Qwen/Qwen3-Embedding-0.6B'
 DEVICE = 'cuda:0'
 
 LLM_MODEL_NAME = 'qwen3-8b'
@@ -39,7 +41,6 @@ SAVE_AGENT_TRACES = False
 PLANNER_ABLATION = False
 
 # --- RAG System Configurations ---
-EMBEDDING_BATCH_SIZE = 256
 VECTOR_SEARCH_TOP_K = 10
 BM25_SEARCH_TOP_K = 10
 HYBRID_SEARCH_TOP_K = 10

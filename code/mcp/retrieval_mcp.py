@@ -21,7 +21,7 @@ def _run_search(
     if search_method == "bm25":
         return rag_system.search_citations_bm25(query, top_k=capped_top_k, offset=offset, before_date=before_date, gt_arxiv_ids=gt_arxiv_ids, exclude_arxiv_ids=selected_paper_ids_tracker)
     # default to hybrid
-    return rag_system.search_citations_hybrid(query, top_k=capped_top_k, before_date=before_date, offset=offset)
+    return rag_system.search_citations_hybrid(query, top_k=capped_top_k, before_date=before_date, offset=offset, gt_arxiv_ids=gt_arxiv_ids, exclude_arxiv_ids=selected_paper_ids_tracker)
 
 
 def search_papers(

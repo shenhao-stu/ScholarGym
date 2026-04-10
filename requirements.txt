@@ -10,8 +10,6 @@ pandas
 openai
 
 # Vector Search & Embeddings
-faiss-gpu
-sentence-transformers
 transformers
 torch
 accelerate

@@ -2,11 +2,11 @@
 
 ## 检索模块 (`rag.py`, `build_vector_db.py`)
 
-- [ ] [P0] `search_citations_hybrid()` 调用 `self.search_citations()`(FAISS) 但 `load_or_build_indices()` 加载的是 Qdrant，hybrid 模式会崩溃。统一为 Qdrant 路径
+- [x] [P0] `search_citations_hybrid()` 调用 `self.search_citations()`(FAISS) 但 `load_or_build_indices()` 加载的是 Qdrant，hybrid 模式会崩溃。统一为 Qdrant 路径
 - [x] [P0] BM25 和 vector 的 rank 计算不一致：FAISS `search_citations` rank 从 1-indexed+offset → 统一为 0-indexed（`rag.py:626`）
-- [ ] [P1] 统一向量后端为 Qdrant，清理 FAISS 相关的构建/加载/查询代码（`build_vector_library`、`load_vector_library`、`search_citations`）
-- [ ] [P1] 统一 Embedding 路径：`build_vector_db.py` 和 `rag.py` 都用 OllamaEmbeddings，消除 SentenceTransformer 双轨问题（或反之）
-- [ ] [P1] `build_vector_db.py` 硬编码的 `QDRANT_URL`/`OLLAMA_URL` 改为读 `config.py`
+- [x] [P1] 统一向量后端为 Qdrant，清理 FAISS 相关的构建/加载/查询代码（`build_vector_library`、`load_vector_library`、`search_citations`）
+- [x] [P1] 统一 Embedding 路径：`build_vector_db.py` 和 `rag.py` 都用 OllamaEmbeddings，消除 SentenceTransformer 双轨问题（或反之）
+- [x] [P1] `build_vector_db.py` 硬编码的 `QDRANT_URL`/`OLLAMA_URL` 改为读 `config.py`
 - [ ] [P2] BM25 tokenization (`\b[a-z]+\b`) 会丢弃数字，"BERT-2" 只保留 "bert"（`rag.py:128`）
 - [ ] [P3] checkpoint 每 batch 全量写 `indexed_keys` JSON，改为追加写或降低写入频率
 - [ ] [P3] `search_citations_vector()` 通过 LangChain 封装层查询，考虑直接用 Qdrant client `search()` API 减少开销
@@ -53,7 +53,7 @@
 - [ ] [P1] `api.py:130` sync OpenAI client 创建后未关闭（async 版本 line 238 有 `client.close()`，sync 版本没有），长时间运行积累未关闭的 HTTP 连接
 - [ ] [P1] `api.py` 无 timeout 配置（line 134-141）：远程 API hang 住时调用无限等待
 - [ ] [P1] `planner.py:228` LLM 输出未验证直接 `int()`：`int(item.get("target_k", ...))` 若 LLM 返回非数字字符串则 ValueError 崩溃
-- [ ] [P1] `retrieval_mcp.py:24` hybrid 搜索未传 `gt_arxiv_ids`/`exclude_arxiv_ids`，与 bm25/vector 分支接口不一致
+- [x] [P1] `retrieval_mcp.py:24` hybrid 搜索未传 `gt_arxiv_ids`/`exclude_arxiv_ids`，与 bm25/vector 分支接口不一致
 - [ ] [P2] `rag.py:196` pickle 加载和 `rag.py:109` JSON 加载均无 try/except，文件损坏或 OOM 直接崩溃
 
 ### Medium — 错误被吞或处理不当
@@ -105,7 +105,7 @@
 
 ### 待架构统一时清理 — 随 Step 2 一起处理
 
-- [ ] [P1] `code/rag.py` FAISS 路径 — `load_vector_library()`、`search_citations()`、`search_citations_hybrid()`、`merge_citation_files()`、`display_search_results()`、`__main__` 块。依赖已切换到 Qdrant，FAISS 代码不再可达，等 Step 2 Qdrant 收口时统一清理
+- [x] [P1] `code/rag.py` FAISS 路径 — `load_vector_library()`、`search_citations()`、`search_citations_hybrid()`、`merge_citation_files()`、`display_search_results()`、`__main__` 块。依赖已切换到 Qdrant，FAISS 代码不再可达，等 Step 2 Qdrant 收口时统一清理
 
 ### 独立脚本 — 移至 `scripts/`
 
