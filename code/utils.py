@@ -414,7 +414,7 @@ class CheckpointManager:
     ):
         """Rebuild statistics for deep_research workflow."""
         # Collect metrics by iteration — must match metric_names in eval.py evaluate_benchmark
-        metric_names = ['recall', 'precision', 'retrieval_recall', 'retrieval_precision', 'missed_gt_ratio']
+        metric_names = ['recall', 'precision', 'f1', 'retrieval_recall', 'retrieval_precision', 'retrieval_f1', 'missed_gt_ratio']
         metrics_by_iter = {name: {} for name in metric_names}
         
         for res in query_result['iteration_results']:
