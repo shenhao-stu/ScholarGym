@@ -12,13 +12,79 @@ Configuration:
 """
 
 import os
+import json
+import hashlib
 import asyncio
 import logging
+from pathlib import Path
 from typing import Dict, Optional, Union, Tuple, Any
 
 from openai import OpenAI, AsyncOpenAI
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# LLM Cassette (record / replay) — behavior-preservation layer
+# ---------------------------------------------------------------------------
+# Set LLM_CASSETTE_MODE to:
+#   "live"    (default) — call LLM normally, no recording
+#   "record"  — call LLM normally AND write response to cassette file
+#   "replay"  — read response from cassette file; raise if missing
+#
+# Cassettes are keyed by sha256(prompt+model+gen_params+thinking+structured),
+# making pipeline behavior deterministic for refactor regression testing.
+
+_CASSETTE_DIR = Path(__file__).parent / "tests" / "cassettes"
+_CASSETTE_MODE = os.environ.get("LLM_CASSETTE_MODE", "live").lower()
+
+
+def _cassette_key(prompt: str, model: str, gen_params: Dict,
+                  enable_thinking: bool, return_structured: bool) -> str:
+    payload = json.dumps(
+        {
+            "prompt": prompt,
+            "model": model,
+            "params": {
+                "max_tokens": gen_params.get("max_tokens", 8192),
+                "temperature": gen_params.get("temperature", 0),
+                "top_p": gen_params.get("top_p", 1),
+            },
+            "thinking": enable_thinking,
+            "structured": return_structured,
+        },
+        sort_keys=True, ensure_ascii=False, separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+def _cassette_load(key: str):
+    """Returns cached response or None on miss. Re-hydrates tuples."""
+    p = _CASSETTE_DIR / f"{key}.json"
+    if not p.exists():
+        return None
+    with open(p, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    resp = data["response"]
+    if isinstance(resp, dict) and resp.get("__cassette_type__") == "tuple":
+        return tuple(resp["items"])
+    return resp
+
+
+def _cassette_save(key: str, prompt: str, model: str, gen_params: Dict, response) -> None:
+    _CASSETTE_DIR.mkdir(parents=True, exist_ok=True)
+    serializable = response
+    if isinstance(response, tuple):
+        serializable = {"__cassette_type__": "tuple", "items": list(response)}
+    with open(_CASSETTE_DIR / f"{key}.json", "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "model": model,
+                "prompt_preview": prompt[:200],
+                "gen_params": gen_params,
+                "response": serializable,
+            },
+            f, ensure_ascii=False, indent=2,
+        )
 
 # ---------------------------------------------------------------------------
 # Provider Configuration
@@ -107,6 +173,33 @@ def _call_llm(
     return_structured: bool = False,
     response_format: Any = None,
 ) -> Union[str, Tuple[str, str], Dict]:
+    """Sync LLM call with optional cassette record/replay (see _CASSETTE_MODE)."""
+    if _CASSETTE_MODE in ("replay", "record"):
+        ck = _cassette_key(prompt, model, gen_params, enable_thinking, return_structured)
+        if _CASSETTE_MODE == "replay":
+            cached = _cassette_load(ck)
+            if cached is None:
+                raise RuntimeError(
+                    f"Cassette miss in replay mode: key={ck} model={model} "
+                    f"(prompt preview: {prompt[:80]!r})"
+                )
+            return cached
+    result = _call_llm_impl(prompt, model, gen_params, is_local,
+                            enable_thinking, return_structured, response_format)
+    if _CASSETTE_MODE == "record":
+        _cassette_save(ck, prompt, model, gen_params, result)
+    return result
+
+
+def _call_llm_impl(
+    prompt: str,
+    model: str,
+    gen_params: Dict,
+    is_local: bool = False,
+    enable_thinking: bool = False,
+    return_structured: bool = False,
+    response_format: Any = None,
+) -> Union[str, Tuple[str, str], Dict]:
     """
     Synchronous LLM call.
 
@@ -171,6 +264,33 @@ def _call_llm(
 
 
 async def _call_llm_async(
+    prompt: str,
+    model: str,
+    gen_params: Dict,
+    is_local: bool = False,
+    enable_thinking: bool = False,
+    return_structured: bool = False,
+    response_format: Any = None,
+) -> Union[str, Tuple[str, str], Dict]:
+    """Async LLM call with optional cassette record/replay (see _CASSETTE_MODE)."""
+    if _CASSETTE_MODE in ("replay", "record"):
+        ck = _cassette_key(prompt, model, gen_params, enable_thinking, return_structured)
+        if _CASSETTE_MODE == "replay":
+            cached = _cassette_load(ck)
+            if cached is None:
+                raise RuntimeError(
+                    f"Cassette miss in replay mode: key={ck} model={model} "
+                    f"(prompt preview: {prompt[:80]!r})"
+                )
+            return cached
+    result = await _call_llm_async_impl(prompt, model, gen_params, is_local,
+                                        enable_thinking, return_structured, response_format)
+    if _CASSETTE_MODE == "record":
+        _cassette_save(ck, prompt, model, gen_params, result)
+    return result
+
+
+async def _call_llm_async_impl(
     prompt: str,
     model: str,
     gen_params: Dict,
