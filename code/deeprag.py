@@ -191,8 +191,15 @@ class DeepResearchWorkflow:
 
             async def run_retrieval(subqueries_list: List[SubQuery]):
                 tasks = [fetch_for_subquery(sq) for sq in subqueries_list]
-                results = await asyncio.gather(*tasks)
-                return {sq_id: (papers, rank_dict) for sq_id, papers, rank_dict in results}
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                out = {}
+                for r in results:
+                    if isinstance(r, Exception):
+                        logger.warning(f"[⚠️] Retrieval task failed: {type(r).__name__}: {r}")
+                        continue
+                    sq_id, papers, rank_dict = r
+                    out[sq_id] = (papers, rank_dict)
+                return out
 
             
             with Timer() as retrieval_timer:
@@ -238,11 +245,14 @@ class DeepResearchWorkflow:
                         )
                         for sq_id, plist in papers_for_selection.items()
                     ]
-                    results = await asyncio.gather(*tasks)
-                    return {
-                        sq_id: summaries
-                        for (sq_id, _), summaries in zip(papers_for_selection.items(), results)
-                    }
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
+                    out = {}
+                    for (sq_id, _), r in zip(papers_for_selection.items(), results):
+                        if isinstance(r, Exception):
+                            logger.warning(f"[⚠️] Summarization task failed for sq={sq_id}: {type(r).__name__}: {r}")
+                            continue
+                        out[sq_id] = r
+                    return out
 
                 summaries_map_by_sq = asyncio.run(run_batch_summaries())
                 
@@ -267,8 +277,14 @@ class DeepResearchWorkflow:
                     )
                     for sq_id, plist in papers_for_selection.items()
                 ]
-                results = await asyncio.gather(*tasks)
-                return {sq_id: result for (sq_id, _), result in zip(papers_for_selection.items(), results)}
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                out = {}
+                for (sq_id, _), r in zip(papers_for_selection.items(), results):
+                    if isinstance(r, Exception):
+                        logger.warning(f"[⚠️] Selection task failed for sq={sq_id}: {type(r).__name__}: {r}")
+                        continue
+                    out[sq_id] = r
+                return out
             
             # 5) Browser tool calls for unsure papers
             async def run_browsing():
@@ -286,7 +302,10 @@ class DeepResearchWorkflow:
                     for p_idx, item in enumerate(items)
                 ]
 
-                await asyncio.gather(*tasks)
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                for r in results:
+                    if isinstance(r, Exception):
+                        logger.warning(f"[⚠️] Browsing task failed: {type(r).__name__}: {r}")
 
             papers_for_browsing: Dict[int, List[Dict[str, Any]]] = {}
             browsing_arxiv_ids: Set[str] = set()

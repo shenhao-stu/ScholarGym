@@ -357,9 +357,13 @@ class CheckpointManager:
         cached_results = []
         
         with open(self.checkpoint_file, 'r', encoding='utf-8') as f:
-            for line in f:
+            for line_no, line in enumerate(f, 1):
                 if line.strip():
-                    result = json.loads(line.strip())
+                    try:
+                        result = json.loads(line.strip())
+                    except json.JSONDecodeError:
+                        logger.warning(f"[⚠️] Skipping corrupt checkpoint line {line_no}: {line[:80]!r}")
+                        continue
                     idx = result.get('idx', -1)
                     if idx >= 0:
                         processed_indices.add(idx)
