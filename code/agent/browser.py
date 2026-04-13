@@ -144,7 +144,7 @@ class Ar5ivParser:
                 elif child.name == 'cite':
                     hrefs = [a.get('href').strip('#') for a in child.find_all('a', class_='ltx_ref') if a.get('href')]
                     if hrefs:
-                        local_text.append('~\cite{' + ', '.join(hrefs) + '}')
+                        local_text.append('~\\cite{' + ', '.join(hrefs) + '}')
                 elif child.name == 'img' and child.has_attr('alt'):
                     math_txt = child.get('alt')
                     if len(math_txt) < self.max_math_length:
@@ -229,36 +229,35 @@ class Ar5ivParser:
         
         logger.info(f"Fetching from: {url}")
         
-        async with httpx.AsyncClient(headers=HEADERS, timeout=30.0, follow_redirects=True) as client:
+        async with httpx.AsyncClient(headers=HEADERS, timeout=60.0, follow_redirects=True) as client:
             for attempt in range(max_retries):
                 try:
                     response = await client.get(url)
-                    
+
                     if response.status_code != 200:
                         raise FetchError(f"HTTP Status {response.status_code}", error_type=f"HTTP_{response.status_code}")
-                    
+
                     html_content = response.text
-                    
+
                     if 'https://ar5iv.labs.arxiv.org/html' not in html_content and '<html' not in html_content:
                          raise FetchError("Content likely not valid ar5iv HTML", error_type="Invalid_Content")
-                    
+
                     return self.parse_html_content(html_content)
 
-                except (httpx.TimeoutException, httpx.RequestError, Exception) as e:
+                except (httpx.TimeoutException, httpx.RequestError, FetchError) as e:
                     if isinstance(e, httpx.TimeoutException):
                         err = FetchError("Request Timed Out", error_type="Network_Timeout")
                     elif isinstance(e, httpx.RequestError):
                         err = FetchError(f"Network Request Failed: {e}", error_type="Network_General")
-                    elif isinstance(e, FetchError):
-                        err = e
                     else:
-                        err = FetchError(f"Unexpected Error: {e}", error_type="Unexpected_Error")
-                    
-                    if attempt == max_retries - 1 or (isinstance(err, FetchError) and err.error_type.startswith("HTTP_4")):
+                        err = e
+
+                    if attempt == max_retries - 1 or err.error_type.startswith("HTTP_4"):
                         raise err
-                    
-                    logger.warning(f"Attempt {attempt + 1} failed: {err}. Retrying in {retry_delay} seconds...")
-                    await asyncio.sleep(retry_delay)
+
+                    backoff = retry_delay * (2 ** attempt)
+                    logger.warning(f"Attempt {attempt + 1} failed: {err}. Retrying in {backoff}s...")
+                    await asyncio.sleep(backoff)
 
 
 def convert_dict_to_llm_readable(data):
@@ -489,12 +488,15 @@ class Browser:
         data = parse_json_from_tag(response, tag_name) or {}
 
         if idx < 5 and config.DEBUG:
-            case_study_dir = os.path.join(config.CASE_STUDY_OUTPUT_DIR, f"qid_{idx}", f"iter_{iteration}", "browser")
-            os.makedirs(case_study_dir, exist_ok=True)
-            with open(os.path.join(case_study_dir, f"{step_name}_prompt_sq{sq_id}_p{paper_idx}.txt"), "w", encoding="utf-8") as f:
-                f.write(prompt)
-            with open(os.path.join(case_study_dir, f"{step_name}_response_sq{sq_id}_p{paper_idx}.txt"), "w", encoding="utf-8") as f:
-                f.write(response)
+            try:
+                case_study_dir = os.path.join(config.CASE_STUDY_OUTPUT_DIR, f"qid_{idx}", f"iter_{iteration}", "browser")
+                os.makedirs(case_study_dir, exist_ok=True)
+                with open(os.path.join(case_study_dir, f"{step_name}_prompt_sq{sq_id}_p{paper_idx}.txt"), "w", encoding="utf-8") as f:
+                    f.write(prompt)
+                with open(os.path.join(case_study_dir, f"{step_name}_response_sq{sq_id}_p{paper_idx}.txt"), "w", encoding="utf-8") as f:
+                    f.write(response)
+            except Exception as e:
+                logger.warning(f"Failed to save debug browser output: {e}")
 
         if self.trace_recorder and config.SAVE_AGENT_TRACES:
             stage_data = {
