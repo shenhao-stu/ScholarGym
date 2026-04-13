@@ -60,16 +60,17 @@ class PaperSummarizer:
             'model': self.llm_model,
             'summary': summary
         }
-        
+
+        # Update in-memory cache first (always available even if disk write fails)
+        self.summary_cache[paper_id] = {
+            'model': self.llm_model,
+            'summary': summary
+        }
+
         try:
             with open(self.cache_path, 'a', encoding='utf-8') as f:
                 f.write(json.dumps(cache_entry) + '\n')
-            
-            # Update in-memory cache
-            self.summary_cache[paper_id] = {
-                'model': self.llm_model,
-                'summary': summary
-            }
+                f.flush()
         except IOError as e:
             logger.error(f"Failed to write to cache file {self.cache_path}: {e}")
 

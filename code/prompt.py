@@ -402,9 +402,9 @@ SELECTOR_DECISION_PROMPT = """
 
 <instructions>
 Return JSON **inside <selector_output>...</selector_output>**. Fields:
-- selected: array of paper_id kept
-- reasons: mapping paper_id -> short reason
-- overview: an short overview, a **single string** summarizing the result, include:
+- selected: array of paper_id strings (MUST be quoted strings, e.g. "XXXX.XXXXX", not bare numbers)
+- reasons: mapping paper_id string -> short reason
+- overview: a short overview, a **single string** summarizing the result, include:
 	   - retrieved_topics: what topics the retrieved papers cover
 	   - relevant_summary: what the selected papers discuss
 	   - irrelevant_summary: what the discarded papers discuss, and (if possible) why they seem irrelevant
@@ -414,8 +414,8 @@ Return JSON **inside <selector_output>...</selector_output>**. Fields:
 <output_format>
 <selector_output>
 {{
-  "selected": [],
-  "reasons": {{}},
+  "selected": ["XXXX.XXXXX", "YYYY.YYYYY"],
+  "reasons": {{"XXXX.XXXXX": "reason...", "YYYY.YYYYY": "reason..."}},
   "overview": "1.retrieved_topics: ...;\n2.relevant_summary: ...;\n3.irrelevant_summary: ...;\n4.adjustment_suggestions: ..."
 }}
 </selector_output>
@@ -465,11 +465,11 @@ SELECTOR_DECISION_INCREMENTAL_PROMPT = """
 4. **JSON Requirement**:
    Output the result strictly in JSON format inside <selector_output>.
 
-Fields(ensure all paper_id references use the arxiv_id format):
-- selected: array of paper_id kept as high-quality, relevant evidence.
-- discarded: array of paper_id excluded from further consideration.
-- to_browse: mapping paper_id -> specific extraction goal for the Browser.
-- reasons: mapping paper_id -> short reason for the current decision.
+Fields(ensure all paper_id references are quoted strings, e.g. "XXXX.XXXXX", not bare numbers):
+- selected: array of paper_id strings kept as high-quality, relevant evidence.
+- discarded: array of paper_id strings excluded from further consideration.
+- to_browse: mapping paper_id string -> specific extraction goal for the Browser.
+- reasons: mapping paper_id string -> short reason for the current decision.
 - overview: a single string summarizing the current state:
     - retrieved_topics: what topics the retrieved papers cover
 	  - relevant_summary: what the selected papers discuss
@@ -480,10 +480,10 @@ Fields(ensure all paper_id references use the arxiv_id format):
 <output_format>
 <selector_output>
 {{
-  "selected": [],
-  "discarded": [],
-  "to_browse": {{}},
-  "reasons": {{}},
+  "selected": ["XXXX.XXXXX"],
+  "discarded": ["YYYY.YYYYY"],
+  "to_browse": {{"ZZZZ.ZZZZZ": "extract methodology details"}},
+  "reasons": {{"XXXX.XXXXX": "reason...", "YYYY.YYYYY": "reason...", "ZZZZ.ZZZZZ": "reason..."}},
   "overview": "1.retrieved_topics: ...;\\n2.relevant_summary: ...;\\n3.irrelevant_summary: ...;\\n4.adjustment_suggestions: ..."
 }}
 </selector_output>
@@ -530,11 +530,11 @@ SELECTOR_DECISION_REFRESH_PROMPT = """
 4. **JSON Requirement**:
    Output the result strictly in JSON format inside <selector_output>.
 
-Fields(ensure all paper_id references use the arxiv_id format):
-- selected: array of paper_id kept as high-quality, relevant evidence.
-- discarded: array of paper_id excluded from further consideration.
-- to_browse: mapping paper_id -> specific extraction goal for the Browser.
-- reasons: mapping paper_id -> short reason for the current decision.
+Fields(ensure all paper_id references are quoted strings, e.g. "XXXX.XXXXX", not bare numbers):
+- selected: array of paper_id strings kept as high-quality, relevant evidence.
+- discarded: array of paper_id strings excluded from further consideration.
+- to_browse: mapping paper_id string -> specific extraction goal for the Browser.
+- reasons: mapping paper_id string -> short reason for the current decision.
 - overview: a single string summarizing the current state:
     - retrieved_topics: what topics the retrieved papers cover
 	  - relevant_summary: what the selected papers discuss
@@ -545,10 +545,10 @@ Fields(ensure all paper_id references use the arxiv_id format):
 <output_format>
 <selector_output>
 {{
-  "selected": [],
-  "discarded": [],
-  "to_browse": {{}},
-  "reasons": {{}},
+  "selected": ["XXXX.XXXXX"],
+  "discarded": ["YYYY.YYYYY"],
+  "to_browse": {{"ZZZZ.ZZZZZ": "extract methodology details"}},
+  "reasons": {{"XXXX.XXXXX": "reason...", "YYYY.YYYYY": "reason...", "ZZZZ.ZZZZZ": "reason..."}},
   "overview": "1.retrieved_topics: ...;\\n2.relevant_summary: ...;\\n3.irrelevant_summary: ...;\\n4.adjustment_suggestions: ..."
 }}
 </selector_output>
@@ -590,9 +590,9 @@ SELECTOR_DECISION_PRE_ENRICH_PROMPT = """
 3. **JSON Requirement**:
    Output the result strictly in JSON format inside <selector_output>.
 
-Fields(ensure all paper_id references use the arxiv_id format):
-- selected: array of paper_id kept as high-quality, relevant evidence.
-- reasons: mapping paper_id -> short reason for why it was selected.
+Fields(ensure all paper_id references are quoted strings, e.g. "XXXX.XXXXX", not bare numbers):
+- selected: array of paper_id strings kept as high-quality, relevant evidence.
+- reasons: mapping paper_id string -> short reason for why it was selected.
 - overview: a single string summarizing the current state:
     - retrieved_topics: what topics the retrieved papers cover
     - relevant_summary: what the selected papers discuss
@@ -603,8 +603,8 @@ Fields(ensure all paper_id references use the arxiv_id format):
 <output_format>
 <selector_output>
 {{
-  "selected": [],
-  "reasons": {{}},
+  "selected": ["XXXX.XXXXX", "YYYY.YYYYY"],
+  "reasons": {{"XXXX.XXXXX": "reason...", "YYYY.YYYYY": "reason..."}},
   "overview": "1.retrieved_topics: ...;\\n2.relevant_summary: ...;\\n3.irrelevant_summary: ...;\\n4.adjustment_suggestions: ..."
 }}
 </selector_output>

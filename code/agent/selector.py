@@ -163,7 +163,7 @@ class Selector:
             self.trace_recorder.record_stage(idx, 'selector', stage_data)
             
         id_to_paper = {p.id: p for p in papers}
-        selected_ids = set(data.get("selected", []))
+        selected_ids = set(str(pid) for pid in data.get("selected", []))
         overview = data.get("overview", "")
         to_browse = data.get("to_browse", {})
         selected = [id_to_paper[pid] for pid in selected_ids if pid in id_to_paper]
@@ -180,12 +180,12 @@ class Selector:
             if overview:
                 logger.info(f"[VERBOSE Selector]   overview: {overview[:150]}{'...' if len(overview)>150 else ''}")
         to_browse_mapped = {
-            pid: {
-                "goal": goal, 
-                "paper": id_to_paper.get(pid)
-            } 
-            for pid, goal in to_browse.items() 
-            if pid in id_to_paper
+            str(pid): {
+                "goal": goal,
+                "paper": id_to_paper.get(str(pid))
+            }
+            for pid, goal in to_browse.items()
+            if str(pid) in id_to_paper
         }
         logger.info(f"[🔎 Selector] Selected {len(selected)}/{len(papers)} for sub-query '{sub_query.text}'.")
         
