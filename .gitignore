@@ -12,6 +12,8 @@ scripts/
 *.pt
 *.bin
 *.safetensors
+*.claude
 
 # Paper directory
 paper/
+data/vector_db_checkpoint.json
