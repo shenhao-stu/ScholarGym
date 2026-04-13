@@ -71,10 +71,13 @@ All prompt templates in one file. Multiple variants exist for planner (full_hist
 ### Utilities (`code/utils.py`)
 Mixed concerns: LLM response parsing (`parse_json_from_tag`, `remove_think_blocks`), ArXiv processing, `AgentTraceRecorder`, `CheckpointManager`.
 
-### Build Scripts (not part of eval pipeline)
-- `code/build.py` — Survey paper crawler (ArXiv download, citation extraction)
-- `code/build_bench.py` / `code/fast_build_bench.py` — Benchmark dataset construction
-- `code/build_vector_db.py` — Qdrant vector DB builder
+### Build Scripts (not part of eval pipeline, live in `scripts/`)
+- `scripts/build_corpus.py` — Survey paper crawler (ArXiv download, citation extraction)
+- `scripts/build_benchmark.py` / `scripts/fast_build_benchmark.py` — Benchmark dataset construction
+- `scripts/build_vector_db.py` — Qdrant vector DB builder
+- `scripts/estimate_closed_metrics.py` / `scripts/fix_closed_metrics.py` / `scripts/plot_evaluation_summary.py` — one-off analysis tooling
+
+Scripts live at repo root (outside `code/`) and self-configure `sys.path` to import project modules.
 
 ## Output Structure
 Results go to `eval_results/{model}_{prompt}_{search}_{workflow}_{params}/`:

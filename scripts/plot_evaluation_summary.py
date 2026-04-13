@@ -1,8 +1,11 @@
 import json
 import os
+import sys
 import matplotlib.pyplot as plt
 from itertools import cycle
-import config
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "code"))
+import config  # noqa: E402
 
 CUTOFF = 100
 

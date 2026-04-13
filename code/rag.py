@@ -55,7 +55,7 @@ class CitationRAGSystem:
                 raise NotImplementedError(
                     "Qdrant index rebuild from eval is not supported. "
                     "Please build it manually:\n"
-                    "  python code/build_vector_db.py --paper_db data/scholargym_paper_db.json"
+                    "  python scripts/build_vector_db.py --paper_db data/scholargym_paper_db.json"
                 )
             else:
                 logger.info("[✅]Loading existing Qdrant index...")

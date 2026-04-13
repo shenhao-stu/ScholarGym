@@ -5,10 +5,15 @@ import json
 import types
 import pytest
 
-# Add code/ to sys.path so we can import project modules
+# Add code/ and scripts/ to sys.path so we can import project modules
 CODE_DIR = os.path.join(os.path.dirname(__file__), '..')
 if CODE_DIR not in sys.path:
     sys.path.insert(0, os.path.abspath(CODE_DIR))
+
+# scripts/ is at repo root (one level above code/)
+SCRIPTS_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'scripts')
+if SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, os.path.abspath(SCRIPTS_DIR))
 
 # Provide a minimal config module before any project import touches it
 _config = types.ModuleType("config")

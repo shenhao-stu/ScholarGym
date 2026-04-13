@@ -3,14 +3,17 @@ import time
 import arxiv
 import re
 import os
+import sys
 import requests
 import tarfile
 import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Tuple
 from functools import wraps
-from logger import get_logger
-from rouge import Rouge
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "code"))
+from logger import get_logger  # noqa: E402
+from rouge import Rouge  # noqa: E402
 
 DOCLING_AVAILABLE = False
 USE_SEMANTIC_SCHOLAR = False  # Global flag to control Semantic Scholar API usage

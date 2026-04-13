@@ -18,6 +18,7 @@ Usage:
         --batch_size 128
 """
 import os
+import sys
 import json
 import argparse
 import uuid
@@ -27,7 +28,9 @@ from qdrant_client.models import Distance, VectorParams
 from langchain_qdrant import QdrantVectorStore
 from langchain_ollama import OllamaEmbeddings
 from langchain_core.documents import Document
-import config
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "code"))
+import config  # noqa: E402
 
 # Deterministic UUID namespace for Qdrant point IDs.
 # uuid5(NAMESPACE, arxiv_id) always produces the same UUID for the same paper,

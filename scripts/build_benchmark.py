@@ -10,17 +10,20 @@ This script:
 import json
 import os
 import re
+import sys
 import zipfile
 from typing import List, Dict, Set, Tuple, Optional
 from tqdm import tqdm
 from datetime import datetime
 from collections import defaultdict
-from logger import get_logger
-from rag import CitationRAGSystem
-import config
-from datasets import load_dataset
-import arxiv
-from build import ArxivSearcher, TextCleaner
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "code"))
+from logger import get_logger  # noqa: E402
+from rag import CitationRAGSystem  # noqa: E402
+import config  # noqa: E402
+from datasets import load_dataset  # noqa: E402
+import arxiv  # noqa: E402
+from build_corpus import ArxivSearcher, TextCleaner  # noqa: E402
 
 logger = get_logger(__name__, log_file='./log/build_benchmark.log')
 
