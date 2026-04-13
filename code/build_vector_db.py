@@ -20,6 +20,7 @@ Usage:
 import os
 import json
 import argparse
+import uuid
 import tqdm
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams
@@ -27,6 +28,16 @@ from langchain_qdrant import QdrantVectorStore
 from langchain_ollama import OllamaEmbeddings
 from langchain_core.documents import Document
 import config
+
+# Deterministic UUID namespace for Qdrant point IDs.
+# uuid5(NAMESPACE, arxiv_id) always produces the same UUID for the same paper,
+# making upsert idempotent and preventing duplicate points on re-indexing.
+_QDRANT_NS = uuid.UUID("a3f1b2c4-d5e6-7890-abcd-ef1234567890")
+
+
+def _deterministic_id(key: str) -> str:
+    """Generate a deterministic UUID string from a paper key (arxiv_id or paper_id)."""
+    return str(uuid.uuid5(_QDRANT_NS, key))
 
 
 def load_paper_db(path):
@@ -154,7 +165,9 @@ def build_vector_db(paper_db_path=None, qdrant_url=None, ollama_url=None,
             "url": url,
             "_checkpoint_key": arxiv_id if arxiv_id else paper_id
         }
-        doc_list.append(Document(page_content=content, metadata=metadata))
+        doc = Document(page_content=content, metadata=metadata)
+        doc.id = _deterministic_id(checkpoint_key)
+        doc_list.append(doc)
 
     print(f"      Prepared {len(doc_list)} new documents to index.")
 
@@ -200,6 +213,18 @@ def build_vector_db(paper_db_path=None, qdrant_url=None, ollama_url=None,
     # 4. Indexing Loop
     print(f"[4/5] Indexing {len(doc_list)} vectors...")
 
+    # Checkpoint write cadence: writing the full indexed_keys set every batch
+    # is O(N^2) total I/O. With deterministic UUIDs, upsert is idempotent, so
+    # losing a handful of batches on crash is safe — flush every N batches.
+    CHECKPOINT_FLUSH_EVERY = 50
+    batches_since_flush = 0
+
+    def _flush_checkpoint():
+        tmp_path = checkpoint_path + ".tmp"
+        with open(tmp_path, 'w', encoding='utf-8') as f:
+            json.dump(list(indexed_keys), f)
+        os.replace(tmp_path, checkpoint_path)
+
     for i in tqdm.tqdm(range(0, len(doc_list), batch_size), desc="Indexing Batches"):
         batch = doc_list[i:i+batch_size]
         try:
@@ -208,11 +233,16 @@ def build_vector_db(paper_db_path=None, qdrant_url=None, ollama_url=None,
             for doc in batch:
                 indexed_keys.add(doc.metadata['_checkpoint_key'])
 
-            with open(checkpoint_path, 'w', encoding='utf-8') as f:
-                json.dump(list(indexed_keys), f)
+            batches_since_flush += 1
+            if batches_since_flush >= CHECKPOINT_FLUSH_EVERY:
+                _flush_checkpoint()
+                batches_since_flush = 0
 
         except Exception as e:
             print(f"Error indexing batch {i}: {e}")
+
+    # Final flush to persist the tail batches
+    _flush_checkpoint()
 
     print("[5/5] Done! Vector DB built successfully.")
     client.close()

@@ -15,7 +15,7 @@ import re
 from logger import get_logger
 import config
 from qdrant_client import QdrantClient
-from langchain_qdrant import QdrantVectorStore
+from qdrant_client.http import models as qm
 from langchain_ollama import OllamaEmbeddings
 
 logger = get_logger(__name__, log_file='./log/rag.log')
@@ -33,8 +33,9 @@ class CitationRAGSystem:
         self.bm25_corpus = None
         self.bm25_id_to_index = {}
         self.bm25_index_to_id = {}
-        # Qdrant Vector Store
-        self.qdrant_vector_store = None
+        # Qdrant: raw client + embeddings (no langchain wrapper)
+        self.qdrant_client: Optional[QdrantClient] = None
+        self.qdrant_embeddings: Optional[OllamaEmbeddings] = None
 
     def load_or_build_indices(self, paper_db_path: str, bm25_path: str, rebuild: bool = False):
         """
@@ -72,8 +73,12 @@ class CitationRAGSystem:
 
     def load_paper_db(self, paper_db_path: str) -> Dict[str, Dict]:
         """Load paper database from JSON file."""
-        with open(paper_db_path, 'r', encoding='utf-8') as f:
-            paper_db = json.load(f)
+        try:
+            with open(paper_db_path, 'r', encoding='utf-8') as f:
+                paper_db = json.load(f)
+        except (json.JSONDecodeError, IOError) as e:
+            logger.error(f"Failed to load paper DB from {paper_db_path}: {e}")
+            raise
 
         logger.info(f"[✅]Loaded {len(paper_db)} paper database")
         return paper_db
@@ -81,7 +86,7 @@ class CitationRAGSystem:
     def _preprocess_text_for_bm25(self, text: str) -> List[str]:
         """Preprocess text for BM25 indexing by tokenizing and normalizing."""
         text = text.lower()
-        tokens = re.findall(r'\b[a-z]+\b', text)
+        tokens = re.findall(r'\b[a-z0-9][-a-z0-9]*\b', text)
         return tokens
 
     def build_bm25_index(self, paper_db: Dict[str, Dict], save_path: str):
@@ -135,32 +140,63 @@ class CitationRAGSystem:
         """Load pre-built BM25 index and metadata."""
         logger.info(f"Loading BM25 index from {index_path}")
 
-        with open(index_path, 'rb') as f:
-            data = pickle.load(f)
-            self.bm25_index = data['bm25_index']
-            self.bm25_corpus = data['bm25_corpus']
-            self.paper_metadata.update(data['paper_metadata'])
-            self.bm25_id_to_index = data['id_to_index']
-            self.bm25_index_to_id = data['index_to_id']
+        try:
+            with open(index_path, 'rb') as f:
+                data = pickle.load(f)
+        except (pickle.UnpicklingError, IOError, EOFError) as e:
+            logger.error(f"Failed to load BM25 index from {index_path}: {e}")
+            raise
+
+        self.bm25_index = data['bm25_index']
+        self.bm25_corpus = data['bm25_corpus']
+        self.paper_metadata.update(data['paper_metadata'])
+        self.bm25_id_to_index = data['id_to_index']
+        self.bm25_index_to_id = data['index_to_id']
 
         logger.info(f"Loaded BM25 index with {len(self.bm25_corpus)} documents")
 
     def load_qdrant_index(self):
-        """Load pre-built Qdrant vector store."""
+        """Load pre-built Qdrant vector store (raw client, no langchain wrapper)."""
         logger.info(f"Loading Qdrant index from {config.QDRANT_URL}")
 
-        embeddings = OllamaEmbeddings(
+        self.qdrant_embeddings = OllamaEmbeddings(
             model=config.QDRANT_EMBEDDING_MODEL,
-            base_url=config.OLLAMA_URL
+            base_url=config.OLLAMA_URL,
         )
+        self.qdrant_client = QdrantClient(url=config.QDRANT_URL)
 
-        client = QdrantClient(url=config.QDRANT_URL)
+        # Ensure payload indices exist for server-side filter performance.
+        # Both calls are idempotent-ish: if the index already exists Qdrant
+        # raises, which we log and ignore.
+        for field_name, field_schema in (
+            ("metadata.arxiv_id", qm.PayloadSchemaType.KEYWORD),
+            ("metadata.date", qm.PayloadSchemaType.DATETIME),
+        ):
+            try:
+                self.qdrant_client.create_payload_index(
+                    collection_name=config.QDRANT_COLLECTION_NAME,
+                    field_name=field_name,
+                    field_schema=field_schema,
+                )
+                logger.info(f"[✅] Created payload index on {field_name}")
+            except Exception as e:
+                logger.debug(f"Payload index on {field_name} already exists or failed: {e}")
 
-        self.qdrant_vector_store = QdrantVectorStore(
-            client=client,
-            collection_name=config.QDRANT_COLLECTION_NAME,
-            embedding=embeddings,
-        )
+    @staticmethod
+    def _before_date_to_lt_iso(before_date: str) -> str:
+        """
+        Convert a 'YYYY-MM' / 'YYYY-MM-DD' string into an ISO datetime usable as
+        `DatetimeRange(lt=...)`, with month-granularity semantics matching the
+        legacy Python filter `paper_date[:7] <= before_date[:7]`.
+
+        e.g. before_date='2020-01' -> '2020-02-01T00:00:00Z'
+        (keeps all papers dated on or before Jan 2020).
+        """
+        ym = before_date[:7]
+        year, month = int(ym[:4]), int(ym[5:7])
+        if month == 12:
+            return f"{year + 1}-01-01T00:00:00Z"
+        return f"{year}-{month + 1:02d}-01T00:00:00Z"
 
     def search_citations_vector(
         self,
@@ -172,40 +208,55 @@ class CitationRAGSystem:
         debug: bool = True,
         exclude_arxiv_ids: Optional[Set[str]] = None,
     ):
-        if self.qdrant_vector_store is None:
-             raise ValueError("Vector store not loaded.")
+        if self.qdrant_client is None or self.qdrant_embeddings is None:
+            raise ValueError("Vector store not loaded.")
 
         multiplier = 5
         fetch_k = (offset + config.GT_RANK_CUTOFF) * multiplier
 
-        # 1. Retrieval
-        raw_results = self.qdrant_vector_store.similarity_search_with_score(
-            query=query,
-            k=fetch_k
+        # 1. Build server-side filter (pushes before_date / exclude into Qdrant)
+        must = []
+        must_not = []
+        if before_date:
+            must.append(
+                qm.FieldCondition(
+                    key="metadata.date",
+                    range=qm.DatetimeRange(lt=self._before_date_to_lt_iso(before_date)),
+                )
+            )
+        if exclude_arxiv_ids:
+            must_not.append(
+                qm.FieldCondition(
+                    key="metadata.arxiv_id",
+                    match=qm.MatchAny(any=list(exclude_arxiv_ids)),
+                )
+            )
+        query_filter = (
+            qm.Filter(must=must or None, must_not=must_not or None)
+            if (must or must_not) else None
         )
 
-        # 2. Filtering
+        # 2. Retrieval (raw Qdrant client — no langchain wrapper)
+        query_vec = self.qdrant_embeddings.embed_query(query)
+        hits = self.qdrant_client.query_points(
+            collection_name=config.QDRANT_COLLECTION_NAME,
+            query=query_vec,
+            limit=fetch_k,
+            with_payload=True,
+            query_filter=query_filter,
+        ).points
+
+        # 3. Shape results. Payload is nested: {"page_content": ..., "metadata": {...}}
         filtered_results = []
-        exclude_set = set(exclude_arxiv_ids) if exclude_arxiv_ids else set()
-
-        for doc, score in raw_results:
-            doc_meta = doc.metadata
-            paper_id = doc_meta.get('arxiv_id') or doc_meta.get('id')
-            doc_date = doc_meta.get('date')
-
-            if paper_id and paper_id in exclude_set:
-                continue
-
-            if before_date and doc_date:
-                if doc_date[:7] > before_date[:7]:
-                    continue
-
+        for p in hits:
+            payload = p.payload or {}
+            doc_meta = payload.get("metadata", {}) or {}
+            paper_id = doc_meta.get("arxiv_id") or doc_meta.get("id")
             if not paper_id:
                 continue
+            filtered_results.append((paper_id, float(p.score), doc_meta))
 
-            filtered_results.append((paper_id, float(score), doc_meta))
-
-        # 3. Ranking Metrics
+        # 4. Ranking Metrics
         rank_dict = {}
         total_rank = max(len(filtered_results) - 1, 0)
 
@@ -226,7 +277,7 @@ class CitationRAGSystem:
                         "total": total_rank
                     }
 
-        # 4. Pagination
+        # 5. Pagination
         paginated_results = filtered_results[offset : offset + top_k]
 
         return paginated_results, rank_dict
@@ -345,7 +396,7 @@ class CitationRAGSystem:
 
     def is_loaded(self) -> bool:
         """Check if the vector store is loaded and ready."""
-        return self.qdrant_vector_store is not None
+        return self.qdrant_client is not None
 
     def is_bm25_loaded(self) -> bool:
         """Check if the BM25 system is loaded and ready."""

@@ -28,7 +28,7 @@ class TestCitationRAGSystemInit:
         with patch.object(config, 'DEFAULT_SEARCH_METHOD', 'bm25'):
             rag = CitationRAGSystem()
             assert rag.search_method == 'bm25'
-            assert rag.qdrant_vector_store is None
+            assert rag.qdrant_client is None
             assert rag.bm25_index is None
 
     def test_init_explicit_search_method(self):
@@ -59,7 +59,7 @@ class TestCitationRAGSystemInit:
         """get_available_search_methods should never return 'hybrid'."""
         from rag import CitationRAGSystem
         rag = CitationRAGSystem()
-        rag.qdrant_vector_store = MagicMock()  # fake loaded
+        rag.qdrant_client = MagicMock()  # fake loaded
         rag.bm25_index = MagicMock()  # fake loaded
         methods = rag.get_available_search_methods()
         assert 'hybrid' not in methods
