@@ -1,25 +1,45 @@
 # =============================================================================
 # ScholarGym Configuration
+#
+# Flat module-level constants. Most entry points do `import config` and read
+# attributes directly. CLI args in eval.py override a subset of these.
+# Per-model overrides live in `code/configs/*.py` and can be loaded via
+# `python code/eval.py --config code/configs/gpt54.py`.
 # =============================================================================
 
-# --- Service Endpoints ---
+
+# =============================================================================
+# Services
+# =============================================================================
 QDRANT_URL = "http://localhost:6433"
 OLLAMA_URL = "http://localhost:11434"
 
-# --- Data Paths ---
+
+# =============================================================================
+# Data paths
+# =============================================================================
 PAPER_DB_PATH = 'data/scholargym_paper_db.json'
 BENCHMARK_PATH = 'data/scholargym_bench.jsonl'
 EVAL_BASE_DIR = 'eval_results'
 
-# --- Index Paths ---
+
+# =============================================================================
+# Retrieval / indexes
+# =============================================================================
 BM25_PATH = 'data/bm25_index.pkl'
 DEFAULT_SEARCH_METHOD = 'bm25'
 
-# --- Qdrant Vector Database ---
+# Qdrant vector DB
 QDRANT_COLLECTION_NAME = "paper_knowledge_base"
 QDRANT_EMBEDDING_MODEL = "qwen3-embedding:0.6b"  # Ollama embedding model name
 
-# --- Model Configurations ---
+VECTOR_SEARCH_TOP_K = 10
+BM25_SEARCH_TOP_K = 10
+
+
+# =============================================================================
+# LLM — model + generation params
+# =============================================================================
 DEVICE = 'cuda:0'
 
 LLM_MODEL_NAME = 'qwen3-8b'
@@ -34,24 +54,29 @@ LLM_GEN_PARAMS = {
 
 BROWSER_MAX_TOKENS = 8192
 
-# --- LLM Advanced Features ---
+# Advanced LLM features
 ENABLE_REASONING = True
 ENABLE_STRUCTURED_OUTPUT = False
 SAVE_AGENT_TRACES = False
 PLANNER_ABLATION = False
 
-# --- RAG System Configurations ---
-VECTOR_SEARCH_TOP_K = 10
-BM25_SEARCH_TOP_K = 10
 
-# --- Evaluation Configurations ---
+# =============================================================================
+# Evaluation knobs
+# =============================================================================
 EVAL_TOP_K_VALUES = [5, 10, 20]
 EVAL_PROMPT_TYPE = 'complex'
 EVAL_SEARCH_METHOD = 'bm25'
 EVAL_WORKFLOW = 'deep_research'
 EVAL_MAX_ITERATIONS = 5
 
-# --- Deep Research Configurations ---
+# Metrics
+GT_RANK_CUTOFF = 100
+
+
+# =============================================================================
+# Deep Research workflow
+# =============================================================================
 CONTEXT_MAX_LENGTH_CHARS = 32768
 ENABLE_LLM_FILTERING = True
 LLM_FILTERING_BATCH_SIZE = 5
@@ -62,10 +87,10 @@ BROWSER_MODE = 'NONE'  # Options: 'PRE_ENRICH', 'REFRESH', 'INCREMENTAL', 'NONE'
 SUMMARY_CACHE_PATH = 'summary_cache.jsonl'
 SUMMARY_ABSTRACT_CHAR_THRESHOLD = 20000
 
-# --- Evaluation Metrics ---
-GT_RANK_CUTOFF = 100
 
-# --- Summarization Model ---
+# =============================================================================
+# Summarization model
+# =============================================================================
 SUMMARY_LLM_MODEL_NAME = 'qwen3-8b'
 SUMMARY_LLM_IS_LOCAL = True
 SUMMARY_LLM_GEN_PARAMS = {
@@ -75,9 +100,16 @@ SUMMARY_LLM_GEN_PARAMS = {
     "stream": False
 }
 
+
+# =============================================================================
+# Debug / tracing
+# =============================================================================
 DEBUG = False
 VERBOSE = False  # 开启后在控制台输出 planner/selector/retrieval 的关键中间结果
 CASE_STUDY_OUTPUT_DIR = './case_study'
 
-# --- Paper Corpus ---
+
+# =============================================================================
+# Paper corpus
+# =============================================================================
 TOTAL_PAPER_NUM = 570205
