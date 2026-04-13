@@ -12,8 +12,7 @@ import datetime
 from logger import get_logger
 from rag import CitationRAGSystem
 import config
-from deeprag import DeepResearchWorkflow
-from simplerag import SimpleWorkflow
+from workflows import DeepResearchWorkflow, SimpleWorkflow
 from utils import extract_ground_truth_arxiv_ids, CheckpointManager, calculate_retrieval_metrics, AgentTraceRecorder
 
 logger = get_logger(__name__, log_file='./log/eval.log')

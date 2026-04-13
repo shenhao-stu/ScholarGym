@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScholarGym</title>
+<style>
+/* ── Light theme (default) ── */
+:root{
+  --bg:#ffffff;--surface:#f6f8fa;--surface2:#eef1f5;--border:#e1e4e8;
+  --text:#1f2328;--dim:#656d76;--muted:#a0a8b4;
+  --accent:#0969da;--green:#1a7f37;--yellow:#9a6700;--red:#cf222e;
+  --purple:#8250df;--orange:#bc4c00;--cyan:#0a7b83;
+  --shadow:0 1px 3px rgba(0,0,0,.08);
+  --mono:'SF Mono','Cascadia Code','Fira Code','JetBrains Mono',Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif;
+  --user-bubble:#e8f0fe;
+}
+[data-theme="dark"]{
+  --bg:#0d1117;--surface:#161b22;--surface2:#1c2128;--border:#30363d;
+  --text:#e6edf3;--dim:#7d8590;--muted:#484f58;
+  --accent:#58a6ff;--green:#3fb950;--yellow:#d29922;--red:#f85149;
+  --purple:#bc8cff;--orange:#db6d28;--cyan:#39d2c0;
+  --shadow:0 1px 3px rgba(0,0,0,.3);
+  --user-bubble:#1f3a5f;
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+html{font-size:150%}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:1rem;line-height:1.6;min-height:100vh;display:flex;flex-direction:column;transition:background .2s,color .2s}
+
+/* ── Top bar ── */
+.topbar{padding:0.6rem 1.2rem;display:flex;align-items:center;gap:0.5rem}
+.topbar svg{width:1.1rem;height:1.1rem;stroke:var(--accent);flex-shrink:0}
+.topbar h1{font-size:0.95rem;font-weight:600}
+.topbar .tag{font-size:0.6rem;color:var(--dim);background:var(--surface);border-radius:0.4rem;padding:0.05rem 0.4rem}
+.topbar .spacer{flex:1}
+.theme-toggle{background:none;border:1px solid var(--border);border-radius:0.4rem;padding:0.2rem 0.5rem;cursor:pointer;font-size:0.85rem;color:var(--dim);transition:all .15s}
+.theme-toggle:hover{background:var(--surface);color:var(--text)}
+
+/* ── Landing ── */
+.landing{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem 1rem;transition:all .4s ease}
+.landing.leaving{opacity:0;transform:translateY(40px)}
+.landing.hidden{display:none}
+.landing h2{font-size:1.4rem;font-weight:700;margin-bottom:0.3rem}
+.landing p{font-size:0.85rem;color:var(--dim);margin-bottom:0.8rem}
+
+/* ── Example chips ── */
+.examples{display:flex;flex-wrap:wrap;gap:0.35rem;max-width:36rem;justify-content:center;margin-top:0.8rem}
+.ex-chip{background:var(--surface);border:1px solid var(--border);border-radius:0.5rem;padding:0.3rem 0.6rem;font-size:0.7rem;color:var(--dim);cursor:pointer;transition:all .15s;font-family:var(--sans);line-height:1.4}
+.ex-chip:hover{border-color:var(--accent);color:var(--accent);background:rgba(9,105,218,.04)}
+[data-theme="dark"] .ex-chip:hover{background:rgba(88,166,255,.06)}
+
+/* ── Composer card (shared) ── */
+.composer{width:100%;max-width:36rem;margin:0 auto;background:var(--surface);border:1px solid var(--border);border-radius:0.75rem;transition:border-color .2s,box-shadow .2s;box-shadow:0 4px 16px rgba(0,0,0,.1)}
+.composer:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(9,105,218,.08)}
+[data-theme="dark"] .composer:focus-within{box-shadow:0 0 0 3px rgba(88,166,255,.1)}
+.composer-input{display:block;width:100%;background:transparent;color:var(--text);border:none;padding:0.6rem 0.75rem;font-size:0.85rem;font-family:var(--sans);outline:none;resize:none;min-height:2.2rem}
+.composer-input::placeholder{color:var(--muted)}
+.composer-toolbar{display:flex;align-items:center;gap:0.5rem;padding:0.35rem 0.75rem;border-top:1px solid var(--border)}
+.composer-toolbar .spacer{flex:1}
+.sg{display:flex;align-items:center;gap:0.2rem;font-size:0.6rem;color:var(--dim);font-family:var(--mono)}
+.sg select{background:transparent;color:var(--text);border:none;border-radius:0.25rem;padding:0.15rem 0.25rem;font-family:var(--mono);font-size:0.6rem;width:auto;padding-right:0.1rem;-webkit-appearance:none;appearance:none;transition:background .15s;cursor:pointer;outline:none}
+.sg select:hover{background:var(--surface2)}
+.sg select:focus{background:var(--surface2)}
+/* ── Stepper (iter) ── */
+.stepper{display:flex;align-items:center;background:var(--surface2);border-radius:1rem;padding:0.05rem;gap:0}
+.stepper button{background:transparent;border:none;color:var(--muted);font-size:0.7rem;width:1.1rem;height:1.1rem;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:50%;transition:all .15s;font-family:var(--mono);line-height:1}
+.stepper button:hover{color:var(--text);background:var(--surface)}
+.stepper .stepper-val{width:1.3rem;height:1.3rem;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:0.6rem;font-weight:700;color:var(--text);font-family:var(--mono);user-select:none}
+/* ── Toggle switch ── */
+.sg .toggle-wrap{display:flex;align-items:center;gap:0.2rem}
+.sg .toggle-switch{position:relative;width:1.5rem;height:0.8rem;background:var(--muted);border-radius:0.4rem;cursor:pointer;transition:background .2s;flex-shrink:0}
+.sg .toggle-switch.active{background:var(--accent)}
+.sg .toggle-switch::after{content:"";position:absolute;top:0.1rem;left:0.1rem;width:0.6rem;height:0.6rem;background:#fff;border-radius:50%;transition:transform .2s}
+.sg .toggle-switch.active::after{transform:translateX(0.7rem)}
+.sg .sep{width:1px;height:0.7rem;background:var(--border);margin:0 0.15rem}
+.sg.sep-wrap{margin:0 -0.3rem}
+.sg .icon-label{display:flex;align-items:center;gap:0.15rem}
+.sg .icon-label svg{width:0.7rem;height:0.7rem;stroke:var(--muted);fill:none;flex-shrink:0}
+/* ── Mode picker ── */
+.mode-btn{background:transparent;border:none;border-radius:0.4rem;padding:0.15rem 0.4rem;font-size:0.6rem;color:var(--dim);cursor:pointer;display:flex;align-items:center;gap:0.25rem;font-family:var(--mono);transition:all .15s}
+.mode-btn:hover{background:var(--surface2);color:var(--text)}
+.mode-btn svg{width:0.65rem;height:0.65rem;stroke:currentColor;fill:none}
+.mode-popover{position:absolute;bottom:calc(100% + 0.4rem);left:0;background:var(--surface);border:1px solid var(--border);border-radius:0.5rem;box-shadow:0 4px 20px rgba(0,0,0,.12);padding:0.2rem;min-width:11rem;display:none;z-index:100}
+.mode-popover.open{display:block}
+.mode-popover-title{font-size:0.55rem;color:var(--muted);padding:0.2rem 0.4rem 0.1rem;font-family:var(--sans);font-weight:600}
+.mode-item{display:flex;align-items:center;gap:0.3rem;padding:0.3rem 0.4rem;border-radius:0.35rem;cursor:pointer;transition:background .12s}
+.mode-item:hover{background:var(--surface2)}
+.mode-item.selected{background:rgba(9,105,218,.06)}
+[data-theme="dark"] .mode-item.selected{background:rgba(88,166,255,.08)}
+.mode-item .mi-icon{width:0.85rem;height:0.85rem;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.mode-item .mi-icon svg{width:0.75rem;height:0.75rem;stroke:var(--dim);fill:none}
+.mode-item.selected .mi-icon svg{stroke:var(--accent)}
+.mode-item .mi-body{flex:1;min-width:0}
+.mode-item .mi-title{font-size:0.65rem;font-weight:600;color:var(--text);font-family:var(--sans);line-height:1.2}
+.mode-item .mi-desc{font-size:0.5rem;color:var(--muted);font-family:var(--sans);line-height:1.3}
+.mode-item .mi-check{font-size:0.7rem;flex-shrink:0;opacity:0;color:var(--accent)}
+.mode-item.selected .mi-check{opacity:1}
+/* ── Tab toggle (summarizer) ── */
+.sum-toggle{display:flex;align-items:center;gap:0.3rem;padding:0.3rem 0.4rem;border-top:1px solid var(--border);margin-top:0.15rem}
+.sum-toggle-label{font-size:0.65rem;font-weight:600;color:var(--text);font-family:var(--sans);white-space:nowrap}
+.sum-toggle-track{position:relative;width:1.8rem;height:0.95rem;background:var(--muted);border-radius:0.5rem;cursor:pointer;transition:background .2s;flex-shrink:0}
+.sum-toggle-track.active{background:var(--accent)}
+.sum-toggle-track::after{content:"";position:absolute;top:0.125rem;left:0.125rem;width:0.7rem;height:0.7rem;background:#fff;border-radius:50%;transition:transform .2s;box-shadow:0 1px 2px rgba(0,0,0,.15)}
+.sum-toggle-track.active::after{transform:translateX(0.85rem)}
+.send-btn{background:var(--accent);color:#fff;border:none;border-radius:0.4rem;width:1.6rem;height:1.6rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:opacity .15s;flex-shrink:0}
+.send-btn:hover{opacity:.85}
+.send-btn:disabled{opacity:.3;cursor:not-allowed}
+.send-btn svg{width:0.8rem;height:0.8rem}
+
+/* ── Chat mode ── */
+.chat-mode{flex:1;display:none;flex-direction:column}
+.chat-mode.active{display:flex}
+.chat{flex:1;overflow-y:auto;padding:0.8rem 0;scrollbar-gutter:stable}
+.chat-inner{max-width:36rem;margin:0 auto;padding:0 1rem}
+
+/* ── Sticky bottom bar ── */
+.inputbar{position:sticky;bottom:0;background:transparent;padding:2.5rem 0 0.6rem;z-index:10;overflow:visible}
+.inputbar::before{content:"";position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(to bottom,transparent 0%,var(--bg) 2.5rem);pointer-events:none}
+.inputbar-inner{position:relative;z-index:1;max-width:36rem;margin:0 auto;padding:0 1rem}
+
+/* ── Messages ── */
+.msg{margin-bottom:0.8rem;animation:fadeUp .25s ease-out}
+@keyframes fadeUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+
+.msg-user{display:flex;justify-content:flex-end}
+.msg-user .bubble{background:var(--user-bubble);border-radius:0.7rem 0.7rem 0.2rem 0.7rem;padding:0.5rem 0.75rem;max-width:36rem;font-size:0.85rem;color:var(--text);overflow-wrap:break-word;word-break:break-all}
+
+.msg-ai{display:flex;gap:0.5rem;align-items:flex-start}
+.msg-ai .avatar{width:1.5rem;height:1.5rem;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:0.8rem;margin-top:0.1rem}
+.msg-ai .content{flex:1;min-width:0}
+
+/* ── Thinking ── */
+.thinking{background:var(--surface);border-radius:0.5rem;margin-bottom:0.5rem;overflow:hidden;font-family:var(--mono);font-size:0.75rem}
+.thinking-header{display:flex;align-items:center;gap:0.35rem;padding:0.4rem 0.55rem;cursor:pointer;user-select:none;transition:background .1s;border-radius:0.5rem}
+.thinking-header:hover{background:var(--surface2)}
+.thinking-header .arrow{width:0.6rem;height:0.6rem;display:flex;align-items:center;justify-content:center;transition:transform .2s;flex-shrink:0}
+.thinking-header .arrow::after{content:"";display:block;width:0;height:0;border-top:0.22rem solid transparent;border-bottom:0.22rem solid transparent;border-left:0.3rem solid var(--muted)}
+.thinking-header .arrow.open{transform:rotate(90deg)}
+.thinking-header .ticon{font-size:0.75rem;display:flex;align-items:center}
+.thinking-header .tlabel{font-size:0.75rem;color:var(--dim);flex:1}
+.thinking-header .tdur{font-size:0.65rem;color:var(--muted)}
+.thinking-body{padding:0 0.55rem 0 1.5rem;max-height:0;overflow:hidden;transition:max-height .3s ease,padding .3s ease;border-top:none}
+.thinking-body.open{max-height:8000px;padding:0.25rem 0.55rem 0.4rem 1.5rem}
+
+/* ── Steps ── */
+.step{display:flex;align-items:flex-start;gap:0.3rem;padding:0.1rem 0;min-height:1rem;cursor:default}
+.step.collapsible{cursor:pointer}
+.step.collapsible:hover .slbl{color:var(--text)}
+.step-tree{margin-left:1.2rem;padding-left:0.6rem;border-left:1px solid var(--border);overflow:hidden;transition:max-height .25s ease,opacity .2s}
+.step-tree.collapsed{max-height:0!important;opacity:0;padding-top:0;padding-bottom:0;margin-top:0;margin-bottom:0;border-color:transparent}
+.step .sico{width:0.7rem;height:0.7rem;flex-shrink:0;display:flex;align-items:center;justify-content:center;margin-top:0.2rem}
+.spin{width:0.65rem;height:0.65rem;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.step .slbl{font-size:0.7rem;color:var(--dim);flex:1;word-break:break-word;transition:color .1s}
+.step .smeta{font-size:0.6rem;color:var(--muted);flex-shrink:0}
+.step .sarrow{width:0.6rem;height:0.6rem;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:transform .15s;margin-top:0.2rem}
+.step .sarrow::after{content:"";display:block;width:0;height:0;border-top:0.18rem solid transparent;border-bottom:0.18rem solid transparent;border-left:0.25rem solid var(--muted)}
+.step .sarrow.open{transform:rotate(90deg)}
+
+/* Agent content indented */
+.step.v-agent .slbl::before{content:"● ";color:var(--purple)}
+.step.v-tool .slbl::before{content:"◆ ";color:var(--cyan)}
+.step.v-phase .slbl::before{content:"○ ";color:var(--orange)}
+.step.v-iteration .slbl{font-weight:600;color:var(--text)}
+.step.v-info .slbl{color:var(--muted);font-style:italic}
+
+.sdetail{font-size:0.6rem;color:var(--muted);white-space:pre-wrap;margin:0.05rem 0 0.05rem 1.6rem;line-height:1.5;padding-left:0.5rem;border-left:2px solid var(--surface2)}
+
+.mbadges{display:flex;gap:0.2rem;flex-wrap:wrap;margin:0.15rem 0 0.15rem 1.6rem}
+.mb{display:inline-flex;align-items:center;gap:0.1rem;padding:0.05rem 0.3rem;border-radius:0.3rem;font-size:0.55rem;font-weight:600;background:var(--surface2)}
+.mb .k{color:var(--muted)}.mb .v{color:var(--text)}
+.mb .v.g{color:var(--green)}.mb .v.m{color:var(--yellow)}.mb .v.l{color:var(--orange)}
+
+/* ── Paper cards ── */
+.results-header{font-size:0.95rem;font-weight:600;margin-bottom:0.4rem}
+.results-sub{font-size:0.75rem;color:var(--dim);margin-bottom:0.7rem}
+.paper-card{background:var(--surface);border-radius:0.5rem;padding:0.7rem 0.8rem;margin-bottom:0.4rem;transition:box-shadow .2s;box-shadow:var(--shadow)}
+.paper-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.1)}
+[data-theme="dark"] .paper-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.35)}
+.paper-title{font-size:0.85rem;font-weight:600;margin-bottom:0.15rem;line-height:1.4}
+.paper-title a{color:var(--accent);text-decoration:none}
+.paper-title a:hover{text-decoration:underline}
+.paper-meta{display:flex;flex-wrap:wrap;gap:0.3rem;font-size:0.7rem;color:var(--dim);margin-bottom:0.3rem;align-items:center}
+.paper-meta .venue{background:var(--surface2);border-radius:0.25rem;padding:0 0.25rem;font-size:0.6rem;font-weight:600}
+.paper-meta .cites{color:var(--yellow)}
+.paper-abstract{font-size:0.7rem;color:var(--dim);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.paper-relevance{display:flex;align-items:center;gap:0.3rem;margin-top:0.3rem}
+.rel-bar{width:3rem;height:0.2rem;background:var(--border);border-radius:0.1rem;overflow:hidden}
+.rel-fill{height:100%;border-radius:0.1rem}
+.rel-text{font-size:0.6rem;font-weight:600}
+
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+  <h1>ScholarGym</h1>
+  <span class="tag">Deep Research</span>
+  <span class="spacer"></span>
+  <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme"><span id="theme-icon">☀️</span></button>
+</div>
+
+<!-- Landing -->
+<div class="landing" id="landing">
+  <h2>What would you like to research?</h2>
+  <p>Search across 570K academic papers with AI-powered deep research</p>
+  <div class="composer">
+    <input class="composer-input" type="text" id="landing-query" placeholder="e.g. Recent advances in retrieval-augmented generation..."
+      onkeydown="if(event.key==='Enter')doSearch(this.value)">
+    <div class="composer-toolbar">
+      <div class="sg" style="position:relative">
+        <button class="mode-btn" onclick="toggleModes('mp1')">
+          <svg viewBox="0 0 24 24" stroke-width="2"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0115-6.7L21 8M3 22v-6h6"/><path d="M21 12a9 9 0 01-15 6.7L3 16"/></svg>
+          Modes
+        </button>
+        <div class="mode-popover" id="mp1">
+          <div class="mode-popover-title">Browser Modes</div>
+          <div class="mode-item" data-group="browser" data-val="NONE" onclick="pickMode(this,'mp1')">
+            <div class="mi-icon"><svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/></svg></div>
+            <div class="mi-body"><div class="mi-title">No Browser</div><div class="mi-desc">Retrieval only, no full-text fetching</div></div>
+            <div class="mi-check">✓</div>
+          </div>
+          <div class="mode-item" data-group="browser" data-val="PRE_ENRICH" onclick="pickMode(this,'mp1')">
+            <div class="mi-icon"><svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg></div>
+            <div class="mi-body"><div class="mi-title">Pre-enrich</div><div class="mi-desc">Fetch full text before selection</div></div>
+            <div class="mi-check">✓</div>
+          </div>
+          <div class="mode-item selected" data-group="browser" data-val="REFRESH" onclick="pickMode(this,'mp1')">
+            <div class="mi-icon"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0115-6.7L21 8M3 22v-6h6"/><path d="M21 12a9 9 0 01-15 6.7L3 16"/></svg></div>
+            <div class="mi-body"><div class="mi-title">Refresh</div><div class="mi-desc">Re-evaluate after full-text fetch</div></div>
+            <div class="mi-check">✓</div>
+          </div>
+          <div class="sum-toggle">
+            <span class="sum-toggle-label">Summarizer</span><span style="flex:1"></span>
+            <div class="sum-toggle-track" id="c-sum" onclick="this.classList.toggle('active')"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sg sep-wrap"><span class="sep"></span></div>
+      <div class="sg" style="position:relative">
+        <button class="mode-btn" onclick="toggleModes('sp1')">
+          <svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke="currentColor"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1"/><circle cx="6" cy="18" r="1"/></svg>
+          Source
+        </button>
+        <div class="mode-popover" id="sp1">
+          <div class="mode-popover-title">Source</div>
+          <div class="mode-item selected" data-group="source" data-val="Local" onclick="pickMode(this,'sp1')">
+            <div class="mi-icon"><svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke="currentColor"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1"/><circle cx="6" cy="18" r="1"/></svg></div>
+            <div class="mi-body"><div class="mi-title">Local</div><div class="mi-desc">Search local paper database</div></div>
+            <div class="mi-check">✓</div>
+          </div>
+          <div class="mode-item" data-group="source" data-val="Web" onclick="pickMode(this,'sp1')">
+            <div class="mi-icon"><svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10A15.3 15.3 0 0112 2z"/></svg></div>
+            <div class="mi-body"><div class="mi-title">Web</div><div class="mi-desc">Search online sources</div></div>
+            <div class="mi-check">✓</div>
+          </div>
+        </div>
+      </div>
+      <span class="spacer"></span>
+      <div class="sg"><label>Iters</label><div class="stepper"><button onclick="stepIter('c-iter',-1)">−</button><span class="stepper-val" id="c-iter">3</span><button onclick="stepIter('c-iter',1)">+</button></div></div>
+      <button class="send-btn" onclick="doSearch(document.getElementById('landing-query').value)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="examples">
+    <button class="ex-chip" onclick="pickExample(this)">Recent advances in retrieval-augmented generation</button>
+    <button class="ex-chip" onclick="pickExample(this)">How do LLMs handle long-context information?</button>
+    <button class="ex-chip" onclick="pickExample(this)">Query rewriting techniques for dense retrieval</button>
+    <button class="ex-chip" onclick="pickExample(this)">Corrective and self-reflective RAG methods</button>
+  </div>
+</div>
+<div class="chat-mode" id="chat-mode">
+  <div class="chat" id="chat">
+    <div class="chat-inner" id="chat-inner"></div>
+  </div>
+  <div class="inputbar">
+    <div class="inputbar-inner">
+      <div class="composer">
+        <input class="composer-input" type="text" id="chat-query" placeholder="Ask another question..."
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey)doSearch(this.value)">
+        <div class="composer-toolbar">
+          <div class="sg" style="position:relative">
+            <button class="mode-btn" onclick="toggleModes('mp2')">
+              <svg viewBox="0 0 24 24" stroke-width="2"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0115-6.7L21 8M3 22v-6h6"/><path d="M21 12a9 9 0 01-15 6.7L3 16"/></svg>
+              Modes
+            </button>
+            <div class="mode-popover" id="mp2">
+              <div class="mode-popover-title">Browser Mode</div>
+              <div class="mode-item" data-group="browser" data-val="NONE" onclick="pickMode(this,'mp2')">
+                <div class="mi-icon"><svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/></svg></div>
+                <div class="mi-body"><div class="mi-title">No Browser</div><div class="mi-desc">Retrieval only, no full-text fetching</div></div>
+                <div class="mi-check">✓</div>
+              </div>
+              <div class="mode-item" data-group="browser" data-val="PRE_ENRICH" onclick="pickMode(this,'mp2')">
+                <div class="mi-icon"><svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg></div>
+                <div class="mi-body"><div class="mi-title">Pre-enrich</div><div class="mi-desc">Fetch full text before selection</div></div>
+                <div class="mi-check">✓</div>
+              </div>
+              <div class="mode-item selected" data-group="browser" data-val="REFRESH" onclick="pickMode(this,'mp2')">
+                <div class="mi-icon"><svg viewBox="0 0 24 24" stroke-width="2"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0115-6.7L21 8M3 22v-6h6"/><path d="M21 12a9 9 0 01-15 6.7L3 16"/></svg></div>
+                <div class="mi-body"><div class="mi-title">Refresh</div><div class="mi-desc">Re-evaluate after full-text fetch</div></div>
+                <div class="mi-check">✓</div>
+              </div>
+              <div class="sum-toggle">
+                <span class="sum-toggle-label">Summarizer</span><span style="flex:1"></span>
+                <div class="sum-toggle-track" id="c-sum2" onclick="this.classList.toggle('active')"></div>
+              </div>
+            </div>
+          </div>
+          <div class="sg sep-wrap"><span class="sep"></span></div>
+          <div class="sg" style="position:relative">
+            <button class="mode-btn" onclick="toggleModes('sp2')">
+              <svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke="currentColor"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1"/><circle cx="6" cy="18" r="1"/></svg>
+              Source
+            </button>
+            <div class="mode-popover" id="sp2">
+              <div class="mode-popover-title">Source</div>
+              <div class="mode-item selected" data-group="source" data-val="Local" onclick="pickMode(this,'sp2')">
+                <div class="mi-icon"><svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke="currentColor"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><circle cx="6" cy="6" r="1"/><circle cx="6" cy="18" r="1"/></svg></div>
+                <div class="mi-body"><div class="mi-title">Local</div><div class="mi-desc">Search local paper database</div></div>
+                <div class="mi-check">✓</div>
+              </div>
+              <div class="mode-item" data-group="source" data-val="Web" onclick="pickMode(this,'sp2')">
+                <div class="mi-icon"><svg viewBox="0 0 24 24" stroke-width="2" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10A15.3 15.3 0 0112 2z"/></svg></div>
+                <div class="mi-body"><div class="mi-title">Web</div><div class="mi-desc">Search online sources</div></div>
+                <div class="mi-check">✓</div>
+              </div>
+            </div>
+          </div>
+          <span class="spacer"></span>
+          <div class="sg"><label>Iters</label><div class="stepper"><button onclick="stepIter('c-iter2',-1)">−</button><span class="stepper-val" id="c-iter2">3</span><button onclick="stepIter('c-iter2',1)">+</button></div></div>
+          <button class="send-btn" id="send-btn" onclick="doSearch(document.getElementById('chat-query').value)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let ws,nodes={},thinkingEl=null,thinkingBody=null,thinkingStartTime=null,thinkingTimer=null;
+let hasSearched=false;
+
+// ── Theme ──
+function toggleTheme(){
+  const d=document.documentElement;
+  const next=d.getAttribute('data-theme')==='dark'?'light':'dark';
+  if(next==='dark')d.setAttribute('data-theme','dark');else d.removeAttribute('data-theme');
+  document.getElementById('theme-icon').textContent=next==='dark'?'🌙':'☀️';
+  localStorage.setItem('theme',next);
+}
+(function(){const t=localStorage.getItem('theme')||'light';if(t==='dark'){document.documentElement.setAttribute('data-theme','dark');document.getElementById('theme-icon').textContent='🌙'}})();
+
+// ── Config helpers (read from whichever mode-popover is active) ──
+function getModeVal(popId,group){
+  const pop=document.getElementById(popId);
+  const sel=pop.querySelector(`.mode-item.selected[data-group="${group}"]`);
+  return sel?sel.dataset.val:null;
+}
+function getConfig(){
+  const pid=hasSearched?'mp2':'mp1';
+  const s=hasSearched?'2':'';
+  return{
+    max_iterations:+(document.getElementById('c-iter'+s)||document.getElementById('c-iter')).textContent||3,
+    browser_mode:getModeVal(pid,'browser')||'REFRESH',
+    enable_summarization:document.getElementById(hasSearched?'c-sum2':'c-sum').classList.contains('active'),
+    source:getModeVal(hasSearched?'sp2':'sp1','source')||'Local',
+  };
+}
+// Sync landing → chat settings on first search
+function syncSettings(){
+  document.getElementById('c-iter2').textContent=document.getElementById('c-iter').textContent;
+  if(document.getElementById('c-sum').classList.contains('active'))document.getElementById('c-sum2').classList.add('active');
+  // Sync mode popovers
+  [['mp1','mp2'],['sp1','sp2']].forEach(([from,to])=>{
+    const f=document.getElementById(from),t=document.getElementById(to);
+    ['browser','source'].forEach(g=>{
+      const items1=f.querySelectorAll(`.mode-item[data-group="${g}"]`);
+      const items2=t.querySelectorAll(`.mode-item[data-group="${g}"]`);
+      items1.forEach((it,i)=>{
+        if(it.classList.contains('selected'))items2[i]?.classList.add('selected');
+        else items2[i]?.classList.remove('selected');
+      });
+    });
+  });
+}
+// ── Mode popover ──
+function toggleModes(id){
+  const pop=document.getElementById(id);
+  pop.classList.toggle('open');
+}
+function pickMode(el,popId){
+  const group=el.dataset.group;
+  if(group==='sum'){
+    el.classList.toggle('selected');
+  }else{
+    const pop=document.getElementById(popId);
+    pop.querySelectorAll(`.mode-item[data-group="${group}"]`).forEach(it=>it.classList.remove('selected'));
+    el.classList.add('selected');
+    // Update button icon to match selected item
+    const btn=pop.parentElement.querySelector('.mode-btn');
+    if(btn){
+      const iconSvg=el.querySelector('.mi-icon svg');
+      if(iconSvg) btn.querySelector('svg').outerHTML=iconSvg.outerHTML;
+    }
+    // Auto-close source popovers
+    if(group==='source') pop.classList.remove('open');
+  }
+}
+// Close popover on outside click
+document.addEventListener('click',e=>{
+  document.querySelectorAll('.mode-popover.open').forEach(pop=>{
+    if(!pop.contains(e.target)&&!e.target.closest('.mode-btn'))pop.classList.remove('open');
+  });
+});
+
+// ── Search ──
+function doSearch(q){
+  q=(q||'').trim();if(!q)return;
+
+  if(!hasSearched){
+    syncSettings();
+    // Animate landing out
+    const landing=document.getElementById('landing');
+    landing.classList.add('leaving');
+    setTimeout(()=>{
+      landing.classList.add('hidden');
+      document.getElementById('chat-mode').classList.add('active');
+    },350);
+    hasSearched=true;
+  }
+
+  document.getElementById('chat-query').value='';
+  const btn=document.getElementById('send-btn');
+  btn.disabled=true;
+  addMsg('user',q);
+  nodes={};
+
+  const cfg=getConfig();
+  cfg.query=q;
+
+  ws=new WebSocket(`ws://${location.host}/ws`);
+  ws.onopen=()=>ws.send(JSON.stringify({action:'search',config:cfg}));
+  ws.onmessage=e=>handle(JSON.parse(e.data));
+  ws.onclose=()=>{btn.disabled=false};
+  ws.onerror=()=>{btn.disabled=false};
+}
+
+function handle(ev){
+  switch(ev.type){
+    case'status':ev.status==='thinking'?startThinking():finishThinking(ev.message);break;
+    case'step':upsertStep(ev);break;
+    case'metrics':addMetrics(ev);break;
+    case'results':renderResults(ev);document.getElementById('send-btn').disabled=false;break;
+  }
+}
+
+// ── Messages ──
+function addMsg(role,text){
+  const inner=document.getElementById('chat-inner');
+  const div=document.createElement('div');
+  div.className=`msg msg-${role}`;
+  if(role==='user')div.innerHTML=`<div class="bubble">${esc(text)}</div>`;
+  inner.appendChild(div);
+  sb();
+}
+
+function startThinking(){
+  const inner=document.getElementById('chat-inner');
+  const msg=document.createElement('div');
+  msg.className='msg msg-ai';
+  msg.innerHTML=`
+    <div class="avatar">🔬</div>
+    <div class="content">
+      <div class="thinking" id="thinking-block">
+        <div class="thinking-header" onclick="toggleThinking()">
+          <span class="arrow open" id="think-arrow"></span>
+          <span class="ticon"><span class="spin"></span></span>
+          <span class="tlabel" id="think-label">Researching...</span>
+          <span class="tdur" id="think-dur"></span>
+        </div>
+        <div class="thinking-body open" id="thinking-body"></div>
+      </div>
+      <div id="result-area"></div>
+    </div>`;
+  inner.appendChild(msg);
+  thinkingEl=document.getElementById('thinking-block');
+  thinkingBody=document.getElementById('thinking-body');
+  thinkingStartTime=Date.now();
+  thinkingTimer=setInterval(()=>{
+    const el=document.getElementById('think-dur');
+    if(el&&thinkingStartTime)el.textContent=((Date.now()-thinkingStartTime)/1000).toFixed(0)+'s';
+  },500);
+  sb();
+}
+
+function finishThinking(message){
+  if(thinkingTimer){clearInterval(thinkingTimer);thinkingTimer=null}
+  const lbl=document.getElementById('think-label');
+  if(lbl)lbl.textContent=message||'Research complete';
+  const ico=thinkingEl?.querySelector('.ticon');
+  if(ico)ico.innerHTML='<span style="color:var(--green)">✓</span>';
+  setTimeout(()=>{
+    const b=document.getElementById('thinking-body'),a=document.getElementById('think-arrow');
+    if(b)b.classList.remove('open');
+    if(a)a.classList.remove('open');
+  },600);
+}
+
+function toggleThinking(){
+  const b=document.getElementById('thinking-body'),a=document.getElementById('think-arrow');
+  if(!b)return;b.classList.toggle('open');a?.classList.toggle('open');
+}
+
+// ── Steps ──
+// Every step that has collapsible=true OR variant=agent|phase|iteration gets a collapse arrow
+function upsertStep(ev){
+  let el=nodes[ev.id];
+  if(!el){
+    el=document.createElement('div');
+    el.className='step-wrap';
+    const vc=ev.variant?` v-${ev.variant}`:'';
+    // Make agents, phases, and iterations all collapsible
+    const canCollapse=!!(ev.collapsible||ev.variant==='agent'||ev.variant==='phase'||ev.variant==='iteration');
+    const arrowHtml=canCollapse?`<span class="sarrow open" id="sarr-${ev.id}"></span>`:'';
+
+    el.innerHTML=`
+      <div class="step${vc}${canCollapse?' collapsible':''}" id="step-${ev.id}" ${canCollapse?`onclick="toggleStep('${ev.id}')"`:''}>
+        ${arrowHtml}
+        <div class="sico" id="sico-${ev.id}">${sicon(ev.status)}</div>
+        <div class="slbl" id="slbl-${ev.id}">${ev.label||''}</div>
+        <div class="smeta" id="smeta-${ev.id}">${ev.duration?ev.duration+'s':''}</div>
+      </div>
+      ${ev.detail?`<div class="sdetail" id="det-${ev.id}">${ev.detail}</div>`:''}
+      <div class="step-tree" id="kids-${ev.id}"></div>`;
+
+    const parent=ev.parent?document.getElementById(`kids-${ev.parent}`):thinkingBody;
+    if(parent)parent.appendChild(el);
+    nodes[ev.id]=el;
+    sb();
+  }else{
+    const ic=document.getElementById(`sico-${ev.id}`);
+    if(ic)ic.innerHTML=sicon(ev.status);
+    const lb=document.getElementById(`slbl-${ev.id}`);
+    if(lb)lb.textContent=ev.label||'';
+    if(ev.detail){
+      let dt=document.getElementById(`det-${ev.id}`);
+      if(!dt){dt=document.createElement('div');dt.className='sdetail';dt.id=`det-${ev.id}`;el.insertBefore(dt,document.getElementById(`kids-${ev.id}`))}
+      dt.textContent=ev.detail;
+    }
+    const mt=document.getElementById(`smeta-${ev.id}`);
+    if(mt&&ev.duration)mt.textContent=ev.duration+'s';
+  }
+}
+
+function toggleStep(id){
+  const kids=document.getElementById(`kids-${id}`);
+  const det=document.getElementById(`det-${id}`);
+  const arr=document.getElementById(`sarr-${id}`);
+  if(!kids)return;
+  const isCollapsed=kids.classList.contains('collapsed');
+  if(isCollapsed){
+    kids.classList.remove('collapsed');
+    kids.style.display='';
+    if(det)det.style.display='';
+    arr?.classList.add('open');
+  }else{
+    kids.classList.add('collapsed');
+    setTimeout(()=>{kids.style.display='none'},200);
+    if(det)det.style.display='none';
+    arr?.classList.remove('open');
+  }
+}
+
+function sicon(s){
+  if(s==='running')return'<div class="spin"></div>';
+  if(s==='done')return'<span style="color:var(--green);font-size:0.6rem">✓</span>';
+  return'<span style="color:var(--muted)">·</span>';
+}
+
+function addMetrics(ev){
+  const c=document.getElementById(`kids-${ev.parent}`);
+  if(!c)return;
+  const m=ev.metrics,row=document.createElement('div');
+  row.className='mbadges';
+  const cl=v=>v>=.4?'g':v>=.2?'m':'l';
+  row.innerHTML=`
+    <div class="mb"><span class="k">R</span><span class="v ${cl(m.recall)}">${m.recall}</span></div>
+    <div class="mb"><span class="k">P</span><span class="v ${cl(m.precision)}">${m.precision}</span></div>
+    <div class="mb"><span class="k">F1</span><span class="v ${cl(m.f1)}">${m.f1}</span></div>
+    <div class="mb"><span class="k">GT</span><span class="v">${ev.found_gt}/${ev.total_gt}</span></div>`;
+  c.appendChild(row);
+}
+
+// ── Paper results ──
+function renderResults(ev){
+  const area=document.getElementById('result-area');
+  if(!area)return;
+  let html=`<div class="results-header">Found ${ev.total_found} relevant papers</div>`;
+  html+=`<div class="results-sub">Showing top ${ev.papers.length} · Ground truth: ${ev.gt_found}/${ev.gt_total}</div>`;
+  for(const p of ev.papers){
+    const relPct=Math.round(p.relevance*100);
+    const relColor=relPct>=85?'var(--green)':relPct>=70?'var(--yellow)':'var(--orange)';
+    html+=`
+      <div class="paper-card">
+        <div class="paper-title"><a href="${p.url}" target="_blank">${esc(p.title)}</a></div>
+        <div class="paper-meta">
+          <span>${p.authors.slice(0,3).join(', ')}${p.authors.length>3?' et al.':''}</span>
+          <span>·</span><span>${p.year}</span>
+          ${p.venue?`<span class="venue">${p.venue}</span>`:''}
+          <span class="cites">✦ ${p.citations}</span>
+          <span style="color:var(--muted)">${p.arxiv_id}</span>
+        </div>
+        <div class="paper-abstract">${esc(p.abstract)}</div>
+        <div class="paper-relevance">
+          <div class="rel-bar"><div class="rel-fill" style="width:${relPct}%;background:${relColor}"></div></div>
+          <span class="rel-text" style="color:${relColor}">${relPct}%</span>
+        </div>
+      </div>`;
+  }
+  area.innerHTML=html;
+  sb();
+}
+
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function sb(){const c=document.getElementById('chat');if(c)c.scrollTop=c.scrollHeight}
+function pickExample(btn){document.getElementById('landing-query').value=btn.textContent;document.getElementById('landing-query').focus()}
+function stepIter(id,d){const el=document.getElementById(id);let v=+(el.textContent||3)+d;v=Math.max(1,Math.min(10,v));el.textContent=v}
+</script>
+</body>
+</html>

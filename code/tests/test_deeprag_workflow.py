@@ -16,7 +16,7 @@ from conftest import load_fixture
 # conftest.py already sets sys.path and injects a minimal config module
 import config
 from structures import Paper, SubQuery, SubQueryState, ResearchMemory
-from deeprag import DeepResearchWorkflow
+from workflows.deep_research import DeepResearchWorkflow
 
 
 # ---------------------------------------------------------------------------
@@ -289,7 +289,7 @@ class TestDeepResearchWorkflowRun:
 
         return subqueries, selected_papers
 
-    @patch("deeprag.search_papers")
+    @patch("workflows.deep_research.search_papers")
     def test_single_iteration_returns_expected_structure(self, mock_search):
         wf = self._make_workflow()
         self._setup_one_iteration_mocks(wf)
@@ -308,7 +308,7 @@ class TestDeepResearchWorkflowRun:
         assert "executed_queries" in result
         assert len(result["history"]) == 2  # 1 plan + 1 select
 
-    @patch("deeprag.search_papers")
+    @patch("workflows.deep_research.search_papers")
     def test_planner_complete_stops_early(self, mock_search):
         wf = self._make_workflow()
         wf.planner = MagicMock()
@@ -319,7 +319,7 @@ class TestDeepResearchWorkflowRun:
         result = wf.run(query={"query": "test"}, gt_arxiv_ids={"a1"}, idx=0)
         assert result is None
 
-    @patch("deeprag.search_papers")
+    @patch("workflows.deep_research.search_papers")
     def test_planner_complete_with_papers_returns_early(self, mock_search):
         wf = self._make_workflow()
 
@@ -353,7 +353,7 @@ class TestDeepResearchWorkflowRun:
         assert len(plan_stages) == 2
         assert wf.planner.plan_iteration.call_count == 2
 
-    @patch("deeprag.search_papers")
+    @patch("workflows.deep_research.search_papers")
     def test_no_subqueries_returns_none(self, mock_search):
         wf = self._make_workflow()
         wf.planner = MagicMock()
@@ -363,7 +363,7 @@ class TestDeepResearchWorkflowRun:
         result = wf.run(query={"query": "test"}, idx=0)
         assert result is None
 
-    @patch("deeprag.search_papers")
+    @patch("workflows.deep_research.search_papers")
     def test_multi_iteration_paper_accumulation(self, mock_search):
         wf = self._make_workflow()
 
@@ -399,7 +399,7 @@ class TestDeepResearchWorkflowRun:
         assert "p1" in selected_ids
         assert "p2" in selected_ids
 
-    @patch("deeprag.search_papers")
+    @patch("workflows.deep_research.search_papers")
     def test_gt_metrics_in_history(self, mock_search):
         wf = self._make_workflow()
         self._setup_one_iteration_mocks(wf)
@@ -416,7 +416,7 @@ class TestDeepResearchWorkflowRun:
         for field in ["iteration_metrics", "avg_distance", "gt_rank", "retrieved_papers", "selected_papers"]:
             assert field in s
 
-    @patch("deeprag.search_papers")
+    @patch("workflows.deep_research.search_papers")
     def test_timing_fields_in_history(self, mock_search):
         wf = self._make_workflow()
         self._setup_one_iteration_mocks(wf)
@@ -434,7 +434,7 @@ class TestDeepResearchWorkflowRun:
             assert field in s
             assert isinstance(s[field], float)
 
-    @patch("deeprag.search_papers")
+    @patch("workflows.deep_research.search_papers")
     def test_memory_updated_across_iterations(self, mock_search):
         wf = self._make_workflow()
 
@@ -470,7 +470,7 @@ class TestDeepResearchWorkflowRun:
         assert any(sq["id"] == 1 for sq in plan_stages[0]["sub_queries"])
         assert any(sq["id"] == 2 for sq in plan_stages[1]["sub_queries"])
 
-    @patch("deeprag.search_papers")
+    @patch("workflows.deep_research.search_papers")
     def test_executed_queries_tracked(self, mock_search):
         wf = self._make_workflow()
 
@@ -498,7 +498,7 @@ class TestDeepResearchWorkflowRun:
         assert "neural network" in result["executed_queries"]
         assert "deep learning" in result["executed_queries"]
 
-    @patch("deeprag.search_papers")
+    @patch("workflows.deep_research.search_papers")
     def test_final_selected_papers_deduplicated(self, mock_search):
         wf = self._make_workflow()
 
@@ -524,7 +524,7 @@ class TestDeepResearchWorkflowRun:
         selected_ids = [p.id for p in result["selected_papers"]]
         assert selected_ids.count("p1") == 1
 
-    @patch("deeprag.search_papers")
+    @patch("workflows.deep_research.search_papers")
     def test_single_iteration_with_empty_gt(self, mock_search):
         """run() with empty gt_arxiv_ids should still work."""
         wf = self._make_workflow()
@@ -540,7 +540,7 @@ class TestDeepResearchWorkflowRun:
         select_stages = [h for h in result["history"] if h["stage"] == "select"]
         assert select_stages[0]["avg_distance"] == pytest.approx(0.0)
 
-    @patch("deeprag.search_papers")
+    @patch("workflows.deep_research.search_papers")
     def test_three_iterations_run(self, mock_search):
         """Verify 3 iterations produce 3 plan + 3 select stages."""
         wf = self._make_workflow()
@@ -599,7 +599,7 @@ class TestBrowserModeOrchestration:
     @pytest.mark.parametrize(
         "case", _deeprag_data["browser_mode_cases"], ids=_param_id
     )
-    @patch("deeprag.search_papers")
+    @patch("workflows.deep_research.search_papers")
     def test_browser_mode(self, mock_search, case):
         mode = case["mode"]
         config.BROWSER_MODE = mode

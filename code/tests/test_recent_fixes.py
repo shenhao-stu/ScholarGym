@@ -287,7 +287,7 @@ class TestAsyncGatherExceptionIsolation:
 
     def test_retrieval_exception_does_not_crash_others(self):
         """One retrieval task failing should not prevent other results."""
-        from deeprag import DeepResearchWorkflow
+        from workflows.deep_research import DeepResearchWorkflow
 
         wf = DeepResearchWorkflow(rag_system=MagicMock())
 
@@ -323,7 +323,7 @@ class TestAsyncGatherExceptionIsolation:
 
     def test_selection_exception_isolation(self):
         """One selector call failing should not crash other selections."""
-        from deeprag import DeepResearchWorkflow
+        from workflows.deep_research import DeepResearchWorkflow
 
         async def run_selection():
             async def select_ok(*args, **kwargs):
