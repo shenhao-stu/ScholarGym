@@ -11,6 +11,7 @@ from typing import List, Optional, Dict, Any
 import config
 from agent import Planner, Selector, Browser, PaperSummarizer
 from rag import CitationRAGSystem
+from mcp.retrieval_mcp import search_papers
 from structures import Paper, SubQuery, SubQueryState, ResearchMemory
 from logger import get_logger
 
@@ -178,13 +179,24 @@ class DemoWorkflow:
                 await self._step(sid, rid, f'{method_label}: "{short}"',
                                  variant="tool")
                 try:
-                    result = self.rag.search_citations(
+                    raw_results, _rank = search_papers(
+                        rag_system=self.rag,
                         query=sq.text,
                         top_k=sq.target_k,
-                        search_method=self.rag.search_method,
-                        debug=False,
+                        search_method=getattr(self.rag, "search_method", "bm25"),
+                        before_date=sq.before_date,
                     )
-                    papers = result[0] if isinstance(result, tuple) else result
+                    papers = [
+                        Paper(
+                            id=item.get("paper_id", ""),
+                            title=item.get("title", "N/A"),
+                            abstract=item.get("abstract", "N/A"),
+                            arxiv_id=item.get("arxiv_id", "N/A"),
+                            date=item.get("date"),
+                            score=item.get("score"),
+                        )
+                        for item in raw_results
+                    ]
                 except Exception as e:
                     logger.warning(f"Retrieval failed for sq={sq.id}: {e}")
                     papers = []
