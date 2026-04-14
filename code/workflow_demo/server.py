@@ -121,7 +121,9 @@ async def ws_ep(ws: WebSocket):
                     }))
                 except Exception:
                     pass
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, RuntimeError):
+        # RuntimeError can be raised by starlette when a peer drops mid-loop;
+        # treat it the same as a clean disconnect.
         pass
 
 
