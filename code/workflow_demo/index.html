@@ -610,8 +610,12 @@ function renderResults(ev){
   for(const p of ev.papers){
     const arxivId=p.arxiv_id||p.id||'';
     const url=p.url||(arxivId?`https://arxiv.org/abs/${arxivId}`:'#');
-    const score=typeof p.score==='number'?p.score:(typeof p.relevance==='number'?p.relevance:0);
-    const relPct=Math.max(0,Math.min(100,Math.round(score*100)));
+    // Only render a relevance bar when the score looks normalized to [0, 1]
+    // (e.g. cosine similarity). Raw BM25 scores can be 5~30+ and would always
+    // clip to 100%, which is more misleading than hiding the bar.
+    const rawScore=typeof p.score==='number'?p.score:(typeof p.relevance==='number'?p.relevance:null);
+    const hasNormalized=rawScore!==null&&rawScore>=0&&rawScore<=1;
+    const relPct=hasNormalized?Math.round(rawScore*100):0;
     const relColor=relPct>=85?'var(--green)':relPct>=70?'var(--yellow)':'var(--orange)';
     const authors=Array.isArray(p.authors)?p.authors:[];
     const metaBits=[];
@@ -627,10 +631,10 @@ function renderResults(ev){
         <div class="paper-title"><a href="${url}" target="_blank">${esc(p.title||'(no title)')}</a></div>
         <div class="paper-meta">${metaBits.join('<span>·</span>')}</div>
         <div class="paper-abstract">${esc(abstract)}</div>
-        <div class="paper-relevance">
+        ${hasNormalized?`<div class="paper-relevance">
           <div class="rel-bar"><div class="rel-fill" style="width:${relPct}%;background:${relColor}"></div></div>
           <span class="rel-text" style="color:${relColor}">${relPct}%</span>
-        </div>
+        </div>`:''}
       </div>`;
   }
   area.innerHTML=html;
