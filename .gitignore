@@ -17,3 +17,15 @@ scholargym_paper_db.json
 paper/
 data/vector_db_checkpoint.json
 Total Plan.txt
+
+# Claude local project settings
+.claude/settings.local.json
+
+# Local experiment artifacts
+logs/
+runs/
+paper_metrics/
+data/fast_benchmark_data/
+docs/
+{alt})*
+{path})*

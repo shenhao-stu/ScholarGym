@@ -659,7 +659,7 @@ def main():
     benchmark_data = evaluator.load_benchmark_data(config.BENCHMARK_PATH)
 
     detailed_results_file = os.path.join(current_output_dir, 'detailed_results.jsonl')
-    summary_file = os.path.join(config.EVAL_BASE_DIR, 'evaluation_summary.jsonl')
+    summary_file = os.path.join(os.path.dirname(current_output_dir), 'evaluation_summary.jsonl')
 
     logger.info("[📈]Starting evaluation...")
     results = evaluator.evaluate_benchmark(

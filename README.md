@@ -325,12 +325,18 @@ python scripts/exp/web.py --host 0.0.0.0 --port 9000   # share over network
 **Run directory layout** (`runs/<name>/`):
 
 ```
-config.py              # auto-generated from defaults + experiment overrides
+config.py              # auto-generated fully resolved config snapshot in the same sectioned format as code/config.py
 manifest.yaml          # snapshot of the YAML entry for this run
 state.json             # {pid, start_time, status, total_queries, ...}
 run.log                # stdout + stderr from eval.py
 detailed_results.jsonl # per-query checkpoint (used for resume)
 results.json           # final aggregated metrics (created when done)
+```
+
+**Global summary file**:
+
+```
+runs/evaluation_summary.jsonl  # append-only aggregate summary across managed runs
 ```
 
 **Dashboard features**:

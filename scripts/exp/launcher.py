@@ -12,6 +12,7 @@ Subcommands:
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -44,7 +45,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 # ---------------------------------------------------------------------------
 
 # Map yaml keys -> (config.py variable, value transformer)
-# Only fields here get rendered into the generated config.py.
 YAML_TO_CONFIG = {
     "model": ("LLM_MODEL_NAME", lambda v: v),
     "is_local": ("IS_LOCAL_LLM", lambda v: bool(v)),
@@ -62,6 +62,107 @@ YAML_TO_CONFIG = {
     "planner_ablation": ("PLANNER_ABLATION", lambda v: bool(v)),
     "top_k": ("EVAL_TOP_K_VALUES", lambda v: list(v)),
 }
+
+CONFIG_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
+    (
+        "Required / commonly changed",
+        [
+            ("LLM_MODEL_NAME", "Change this to the model you want to evaluate."),
+            ("IS_LOCAL_LLM", "Set True for local serving backends like Ollama or sglang."),
+            ("BENCHMARK_PATH", "Benchmark file to evaluate."),
+            ("EVAL_SEARCH_METHOD", "Retrieval method: 'bm25' or 'vector'."),
+            ("EVAL_WORKFLOW", "Workflow: 'simple' or 'deep_research'."),
+        ],
+    ),
+    (
+        "Services",
+        [
+            ("QDRANT_URL", "Qdrant service endpoint."),
+            ("OLLAMA_URL", "Local Ollama endpoint."),
+        ],
+    ),
+    (
+        "Data paths",
+        [
+            ("PAPER_DB_PATH", "Paper database JSON path."),
+            ("EVAL_BASE_DIR", "Base output directory for legacy eval.py runs."),
+        ],
+    ),
+    (
+        "Retrieval / indexes",
+        [
+            ("BM25_PATH", "BM25 index path."),
+            ("DEFAULT_SEARCH_METHOD", "Default retrieval backend outside explicit eval overrides."),
+            ("QDRANT_COLLECTION_NAME", "Qdrant collection name."),
+            ("QDRANT_EMBEDDING_MODEL", "Embedding model used for Qdrant indexing/querying."),
+            ("VECTOR_SEARCH_TOP_K", "Vector retrieval fanout before later filtering."),
+            ("BM25_SEARCH_TOP_K", "BM25 retrieval fanout before later filtering."),
+        ],
+    ),
+    (
+        "LLM — model + generation params",
+        [
+            ("DEVICE", "Compute device for local components."),
+            ("LLM_GEN_PARAMS", "Generation parameters for the main evaluator model."),
+            ("BROWSER_MAX_TOKENS", "Max tokens when browser-related LLM calls are made."),
+            ("ENABLE_REASONING", "Usually keep default unless comparing reasoning ablations."),
+            ("ENABLE_STRUCTURED_OUTPUT", "Use structured outputs when the provider supports them."),
+            ("SAVE_AGENT_TRACES", "Persist detailed agent traces for debugging."),
+            ("PLANNER_ABLATION", "Enable planner ablation mode for experiments."),
+        ],
+    ),
+    (
+        "Evaluation knobs",
+        [
+            ("EVAL_TOP_K_VALUES", "Top-k list used by the simple workflow."),
+            ("EVAL_PROMPT_TYPE", "Prompt template family."),
+            ("EVAL_MAX_ITERATIONS", "Iteration count for deep_research."),
+            ("GT_RANK_CUTOFF", "Ground-truth rank cutoff for metrics."),
+        ],
+    ),
+    (
+        "Deep Research workflow",
+        [
+            ("CONTEXT_MAX_LENGTH_CHARS", "Context budget for long prompts."),
+            ("ENABLE_LLM_FILTERING", "Whether to run selector-side LLM filtering."),
+            ("LLM_FILTERING_BATCH_SIZE", "Batch size for selector filtering."),
+            ("MAX_RESULTS_PER_QUERY", "Results retrieved per subquery in deep_research."),
+            ("MAX_PAGES_PER_QUERY", "Browser page cap per subquery."),
+            ("ENABLE_SUMMARIZATION", "Enable abstract/content summarization."),
+            ("BROWSER_MODE", "Browser mode: 'NONE', 'PRE_ENRICH', 'REFRESH', or 'INCREMENTAL'."),
+            ("SUMMARY_CACHE_PATH", "JSONL cache for summarizer outputs."),
+            ("SUMMARY_ABSTRACT_CHAR_THRESHOLD", "Summarize abstracts longer than this threshold."),
+        ],
+    ),
+    (
+        "Summarization model",
+        [
+            ("SUMMARY_LLM_MODEL_NAME", "Model used by the summarizer."),
+            ("SUMMARY_LLM_IS_LOCAL", "Whether summarizer model is served locally."),
+            ("SUMMARY_LLM_GEN_PARAMS", "Generation parameters for the summarizer model."),
+        ],
+    ),
+    (
+        "Debug / tracing",
+        [
+            ("DEBUG", "Enable extra debug behaviors."),
+            ("VERBOSE", "Print more intermediate workflow details."),
+            ("CASE_STUDY_OUTPUT_DIR", "Directory for case-study artifacts."),
+        ],
+    ),
+    (
+        "Paper corpus",
+        [
+            ("TOTAL_PAPER_NUM", "Total number of papers in the corpus."),
+        ],
+    ),
+]
+
+CONFIG_FIELD_ORDER = [
+    name
+    for _, entries in CONFIG_SECTIONS
+    for name, _ in entries
+]
 
 
 def load_manifest(path: Path) -> dict:
@@ -89,21 +190,66 @@ def merged_settings(defaults: dict, exp: dict) -> dict:
     return merged
 
 
+def _load_base_config_values() -> dict[str, Any]:
+    config_path = PROJECT_ROOT / "code" / "config.py"
+    spec = importlib.util.spec_from_file_location("scholargym_base_config", config_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Failed to load base config from {config_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    values: dict[str, Any] = {}
+    missing_fields: list[str] = []
+    for name in CONFIG_FIELD_ORDER:
+        if not hasattr(module, name):
+            missing_fields.append(name)
+            continue
+        values[name] = getattr(module, name)
+
+    if missing_fields:
+        missing = ", ".join(missing_fields)
+        raise RuntimeError(f"code/config.py is missing expected config fields: {missing}")
+
+    return values
+
+
+def _render_config_lines(values: dict[str, Any], *, header_lines: list[str]) -> list[str]:
+    lines = list(header_lines)
+
+    for section_name, entries in CONFIG_SECTIONS:
+        lines.extend([
+            "# =============================================================================",
+            f"# {section_name}",
+            "# =============================================================================",
+            "",
+        ])
+        for name, comment in entries:
+            if comment:
+                lines.append(f"# {comment}")
+            lines.append(f"{name} = {repr(values[name])}")
+            lines.append("")
+
+    return lines
+
+
 def render_config(merged: dict, target: Path) -> None:
-    """Write a config.py that does `from config import *` then assigns overrides."""
-    lines = [
-        "# Auto-generated by scripts/exp/launcher.py — do not edit by hand.",
-        "# Regenerate via `launcher.py up --fresh` or by removing this file.",
-        "from config import *",
-        "",
-    ]
+    """Write a fully resolved config.py snapshot for this run."""
+    resolved = _load_base_config_values()
     for key, val in merged.items():
         if key not in YAML_TO_CONFIG:
             continue
         config_var, transform = YAML_TO_CONFIG[key]
-        py_value = repr(transform(val))
-        lines.append(f"{config_var} = {py_value}")
-    lines.append("")
+        resolved[config_var] = transform(val)
+
+    lines = _render_config_lines(
+        resolved,
+        header_lines=[
+            "# Auto-generated by scripts/exp/launcher.py — do not edit by hand.",
+            "# Resolved config snapshot for this run.",
+            "# This file uses the same layout as code/config.py for easier inspection.",
+            "",
+        ],
+    )
     target.write_text("\n".join(lines))
 
 
