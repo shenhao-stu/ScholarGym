@@ -1,0 +1,58 @@
+# ScholarGym Experiment Manifest
+#
+# Usage:
+#   python scripts/exp/launcher.py up                  # launch all
+#   python scripts/exp/launcher.py up --only name1     # launch one
+#   python scripts/exp/launcher.py down                # stop all running
+#   python scripts/exp/launcher.py status              # one-shot status
+#   python scripts/exp/dashboard.py                    # live TUI monitor
+#
+# `name` is the unique identifier; it becomes the directory under runs_dir.
+# `group` is the model family / second-level grouping in monitors.
+# `type` is the top-level grouping in monitors (e.g. main / ablation / debug).
+# Anything in `defaults` is overridable per-experiment.
+
+runs_dir: runs
+
+defaults:
+  benchmark_jsonl: data/test_fast.jsonl
+  workflow: deep_research
+  search_method: bm25
+  max_iterations: 5
+  results_per_query: 10
+  prompt_type: complex
+  enable_reasoning: true
+  enable_structured_output: false
+  browser_mode: NONE
+
+experiments:
+  - name: qwen3-8b-none
+    group: qwen3-8b
+    type: main
+    model: qwen3-8b
+    is_local: true
+    browser_mode: NONE
+
+  - name: qwen3-8b-refresh
+    group: qwen3-8b
+    type: main
+    model: qwen3-8b
+    is_local: true
+    browser_mode: REFRESH
+
+  - name: gpt54-none
+    group: gpt-5.4
+    type: main
+    model: gpt-5.4
+    is_local: false
+    browser_mode: NONE
+    env:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_BASE_URL: https://ohmyapi-2api.hf.space/v1
+
+  - name: glm51-none
+    group: glm-5.1
+    type: main
+    model: glm-5.1
+    is_local: false
+    browser_mode: NONE

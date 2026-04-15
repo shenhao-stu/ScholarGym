@@ -222,6 +222,141 @@ python code/eval.py \
     --llm_model qwen3:8b
 ```
 
+### Managing Multiple Experiments
+
+For running and tracking several experiments in parallel (e.g., comparing
+models or browser modes), use the experiment manager under `scripts/exp/`.
+It reads a single `experiments.yaml`, renders per-run configs, launches each
+eval as a detached background process, and provides a live dashboard.
+
+**Manifest** (`experiments.yaml` at the project root):
+
+```yaml
+runs_dir: runs
+
+defaults:
+  benchmark_jsonl: data/test_fast.jsonl
+  workflow: deep_research
+  search_method: bm25
+  max_iterations: 5
+  results_per_query: 10
+  prompt_type: complex
+  enable_reasoning: true
+  browser_mode: NONE
+
+experiments:
+  - name: qwen3-8b-none        # unique; becomes runs/<name>/
+    group: qwen3-8b            # model family / second-level grouping in monitors
+    type: main                 # top-level grouping in monitors (e.g. main/ablation/debug)
+
+# monitors render as: type -> group -> run
+    model: qwen3-8b
+    is_local: true
+    browser_mode: NONE
+
+  - name: gpt54-none
+    group: gpt-5.4
+    model: gpt-5.4
+    is_local: false
+    env:                       # process-level env, supports ${VAR} interpolation
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_BASE_URL: https://your-endpoint/v1
+```
+
+**Commands**:
+
+```bash
+# Launch (or resume) all experiments. Idempotent: existing checkpoints auto-resume.
+python scripts/exp/launcher.py up
+
+# Launch only a subset
+python scripts/exp/launcher.py up --only qwen3-8b-none,gpt54-none
+
+# Wipe an existing run dir and start fresh
+python scripts/exp/launcher.py up --only qwen3-8b-none --fresh
+
+# One-shot status table (no live refresh)
+python scripts/exp/launcher.py status
+
+# Stop running experiments (SIGTERM, then SIGKILL after 5s)
+python scripts/exp/launcher.py down
+python scripts/exp/launcher.py down --only qwen3-8b-none
+
+# Restart (down + up in one command), optionally with --fresh
+python scripts/exp/launcher.py restart --only qwen3-8b-none
+python scripts/exp/launcher.py restart --only qwen3-8b-none --fresh
+
+# Live dashboard (rich TUI, refreshes every 5s; Ctrl+C to exit, experiments unaffected)
+python scripts/exp/dashboard.py
+
+# Full-featured TUI: two-pane, keyboard nav, sparklines, kill/restart from inside
+python scripts/exp/tui.py
+
+# Web UI: open http://127.0.0.1:8765 in a browser
+python scripts/exp/web.py
+python scripts/exp/web.py --host 0.0.0.0 --port 9000   # share over network
+```
+
+**Three monitor flavors**:
+
+| Tool | Best for | Features |
+|---|---|---|
+| `dashboard.py` | quick glance, ssh sessions | rich.live table grouped by type → group → run, no interaction |
+| `tui.py` | working session, multiple experiments | textual two-pane: table + log tail + sparklines, grouped by type → group → run, j/k navigation, K kill, R restart, F restart-fresh, all with confirm modals |
+| `web.py` | sharing, remote viewing | FastAPI + HTML, click row → details + log tail + SVG sparklines, grouped by type → group → run, read-only |
+
+**TUI key bindings** (`tui.py`):
+
+| Key | Action |
+|---|---|
+| `Tab` | switch focus between table and log |
+| `j` / `↓` | next row when table focused; scroll log down when log focused |
+| `k` / `↑` | previous row when table focused; scroll log up when log focused |
+| `PageDown` / `PageUp` | scroll log down / up |
+| `End` | jump log to latest |
+| `Home` | jump log to top |
+| `r` | refresh now |
+| `K` | kill selected (with confirm) |
+| `R` | restart selected — preserves checkpoint (with confirm) |
+| `F` | fresh restart — wipes checkpoint (with confirm) |
+| `L` | toggle right detail panel |
+| `q` / `Ctrl+C` | quit (does not affect experiments) |
+
+**Run directory layout** (`runs/<name>/`):
+
+```
+config.py              # auto-generated from defaults + experiment overrides
+manifest.yaml          # snapshot of the YAML entry for this run
+state.json             # {pid, start_time, status, total_queries, ...}
+run.log                # stdout + stderr from eval.py
+detailed_results.jsonl # per-query checkpoint (used for resume)
+results.json           # final aggregated metrics (created when done)
+```
+
+**Dashboard features**:
+
+- Rows grouped as `type -> group -> run` (e.g. `main -> qwen3-8b -> qwen3-8b-none`), color-coded by status
+  (`▶ running`, `✓ done`, `✗ crashed`, `⧗ stalled`, `⊘ stopped`)
+- Live progress bar, elapsed time, ETA, latest iteration's R/P metric
+- Anomaly detection: tails `run.log` for `Traceback`, `APIError`,
+  `ConnectionError`, `RateLimitError`, `TimeoutError` → flags ⚠
+- Crash detection: process gone but not done → marks `crashed` red
+- **No auto-restart** — on crash, fix the root cause and re-run
+  `launcher.py up --only <name>` to resume from checkpoint
+
+**Migrating existing checkpoints** into the new layout:
+
+```bash
+python scripts/exp/migrate.py --dry-run    # preview
+python scripts/exp/migrate.py              # actually copy
+```
+
+The migration script copies `detailed_results.jsonl` from the old
+`eval_results_*/` subdirectories into `runs/<name>/` and writes a synthetic
+`state.json` so the next `launcher.py up` resumes from where you left off.
+The mapping table at the top of `scripts/exp/migrate.py` is project-specific
+and should be edited if your old directory names differ.
+
 ## Project Structure
 
 ```

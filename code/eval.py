@@ -551,6 +551,7 @@ def main():
     parser.add_argument('--max_iterations', type=int, default=None, help='Maximum number of iterations for deep research workflow')
     parser.add_argument('--results_per_query', type=int, default=None, help='Results per query for deep research workflow')
     parser.add_argument('--browser_mode', type=str, default=None, choices=['PRE_ENRICH', 'REFRESH', 'INCREMENTAL', 'NONE'], help='Browser mode for deep research workflow')
+    parser.add_argument('--run_dir', type=str, default=None, help='Final output dir; when set, bypasses the auto-name scheme and writes directly to this directory')
 
     args = parser.parse_args()
 
@@ -588,30 +589,35 @@ def main():
     if args.browser_mode:
         config.BROWSER_MODE = args.browser_mode
 
-    # Build output directory name from config (distinguish params by workflow)
-    reasoning_flag = 'reasoning' if config.ENABLE_REASONING else 'instruct'
-    structured_flag = 'structured' if config.ENABLE_STRUCTURED_OUTPUT else 'non-structured'
-    ablation_flag = '_ablation' if config.PLANNER_ABLATION else ''
-    model_name = config.LLM_MODEL_NAME.split('/')[-1] if '/' in config.LLM_MODEL_NAME else config.LLM_MODEL_NAME
-    if config.EVAL_WORKFLOW == 'simple':
-        workflow_params = f"topk-{config.EVAL_TOP_K_VALUES}"
+    # Build output directory: --run_dir overrides the auto-naming scheme
+    if args.run_dir:
+        current_output_dir = args.run_dir
     else:
-        workflow_params = f"maxq-{config.MAX_RESULTS_PER_QUERY}_iter-{config.EVAL_MAX_ITERATIONS}"
-    current_output_dir = os.path.join(
-        config.EVAL_BASE_DIR,
-        f"{model_name}_{config.EVAL_PROMPT_TYPE}_{config.EVAL_SEARCH_METHOD}_{config.EVAL_WORKFLOW}"
-        f"_{workflow_params}"
-        f"_{reasoning_flag}_{structured_flag}_{config.BROWSER_MODE}{ablation_flag}"
-    )
+        reasoning_flag = 'reasoning' if config.ENABLE_REASONING else 'instruct'
+        structured_flag = 'structured' if config.ENABLE_STRUCTURED_OUTPUT else 'non-structured'
+        ablation_flag = '_ablation' if config.PLANNER_ABLATION else ''
+        model_name = config.LLM_MODEL_NAME.split('/')[-1] if '/' in config.LLM_MODEL_NAME else config.LLM_MODEL_NAME
+        if config.EVAL_WORKFLOW == 'simple':
+            workflow_params = f"topk-{config.EVAL_TOP_K_VALUES}"
+        else:
+            workflow_params = f"maxq-{config.MAX_RESULTS_PER_QUERY}_iter-{config.EVAL_MAX_ITERATIONS}"
+        current_output_dir = os.path.join(
+            config.EVAL_BASE_DIR,
+            f"{model_name}_{config.EVAL_PROMPT_TYPE}_{config.EVAL_SEARCH_METHOD}_{config.EVAL_WORKFLOW}"
+            f"_{workflow_params}"
+            f"_{reasoning_flag}_{structured_flag}_{config.BROWSER_MODE}{ablation_flag}"
+        )
     os.makedirs(current_output_dir, exist_ok=True)
 
-    # Save config file for reproduction
+    # Save config file for reproduction (skip if source and target are the same file,
+    # which happens when --run_dir already contains the --config file)
     try:
         source_config = args.config if args.config else config.__file__
         if source_config:
             target_config_path = os.path.join(current_output_dir, "config.py")
-            shutil.copy(source_config, target_config_path)
-            logger.info(f"[💾] Config file saved to {target_config_path}")
+            if os.path.abspath(source_config) != os.path.abspath(target_config_path):
+                shutil.copy(source_config, target_config_path)
+                logger.info(f"[💾] Config file saved to {target_config_path}")
     except Exception as e:
         logger.warning(f"[⚠️] Failed to save config file: {e}")
 
