@@ -183,8 +183,8 @@ SUMMARY_LLM_GEN_PARAMS = {
 # Debug / tracing
 # =============================================================================
 
-# Enable extra debug behaviors.
-DEBUG = False
+# Save case-study prompts/responses/fulltext for the first 5 samples.
+SAVE_CASE_STUDY_ARTIFACTS = False
 
 # Print more intermediate workflow details.
 VERBOSE = False

@@ -180,7 +180,7 @@ class Planner:
             memory.planner_history.append(json.dumps(data, ensure_ascii=False))
 
         # Save prompt and response for case study analysis
-        if idx < 5 and config.DEBUG:
+        if idx < 5 and config.SAVE_CASE_STUDY_ARTIFACTS:
             import os
             case_study_dir = os.path.join(config.CASE_STUDY_OUTPUT_DIR, f"qid_{idx}", f"iter_{iteration_index}", "planner")
             os.makedirs(case_study_dir, exist_ok=True)

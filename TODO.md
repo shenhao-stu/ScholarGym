@@ -70,20 +70,13 @@
 - [x] [P2] 编写 `docker-compose.yml`，管理 Qdrant 服务，数据卷持久化
 - [x] [P2] 编写 `scripts/start_services.sh`：启动 docker-compose + Ollama、健康检查、可选自动构建索引
 
-## 数据分发 (HuggingFace)
-
-- [ ] [P1] 导出 Qdrant 快照并上传 HuggingFace：`curl -X POST http://localhost:6433/collections/paper_knowledge_base/snapshots`，快照文件约 3-4 GB
-- [ ] [P1] 编写 `scripts/restore_qdrant.py`：下载快照 + 恢复到本地 Qdrant，一条命令完成
-- [ ] [P1] 上传预构建的 `bm25_index.pkl`（2 GB）到 HuggingFace，免去用户构建时间
-- [ ] [P2] 更新 README Quick Start：补充 docker-compose + 数据恢复步骤
-- [ ] [P2] 确认 Ollama 是放进 docker-compose 还是保持本地运行
 
 ## 实验 (`eval.py`, `config_*.py`)
 
-- [ ] [P1] MiniMax M2.5 实验：scnet 账户余额不足（402），需充值后启动
-- [ ] [P1] GLM-5 实验：zhipu API key 过期（401），需更新 key 后启动
-- [ ] [P1] Claude Sonnet 4.6 实验：API 已通，实验未启动
-- [ ] [P2] GPT-5.4 全量实验结果收集与分析（300 queries, 已在后台运行）
+- [ ] [P1] qwen3.5-9b / qwen3.5-27b 主实验稳定性：selector 并发阶段出现 timeout / connection error，需先排查服务端并发与连接稳定性
+- [ ] [P1] qwen3.5-2b 主实验兼容性：planner 阶段未产出可解析 subqueries，workflow 早停，需单独抓原始输出定位格式问题
+- [ ] [P1] GLM-5.1 主实验可用性问题：多 key 轮换后仍触发 429 限流 / 余额不足；即使单次请求成功，也出现仅有 reasoning tokens、`content` 为空的兼容性现象，需先确认 API 返回形态并补充可用额度或更换 key 后再跑
+- [ ] [P2] GPT-5.4 主实验重跑策略：前几轮可正常推进，但后续出现间歇性 connection error，考虑降并发单独重跑
 
 ## 论文 (`paper/neurips2026/`)
 
@@ -129,15 +122,14 @@
 - [x] [P0] `config.py:12` `BENCHMARK_PATH = 'data/scholargym_bench_short.jsonl'` — 已改为 `scholargym_bench.jsonl`
 - [x] [P1] `rag.py` `__main__` 引用了 `config.CITED_DATA_DIR` 和 `config.QDRANT_PATH`，但这些字段在任何 config 中均未定义，运行会崩溃（已随 FAISS 清理删除 `__main__` 块）
 
-## 重构（整体规划，均未执行）
 
-- [ ] [P3] Phase 0: 创建 `scholargym/` 包结构 + Pydantic Settings 配置
-- [ ] [P3] Phase 1: 消除重复代码（prompt 参数化、API sync/async 统一、build 去重、Agent 基类）
-- [ ] [P3] Phase 2: 拆分 utils.py、分离 GT 与检索、数据模型清理（LinkType enum 等）
-- [ ] [P3] Phase 3: 依赖注入、Workflow 基类、deeprag 状态封装
-- [ ] [P3] Phase 4: 测试基础设施、错误处理、requirements 版本锁定 + CPU fallback
-- [ ] [P3] Phase 5: CLI 提取、包最终化
+## 数据分发 (HuggingFace)
 
+- [ ] [P1] 导出 Qdrant 快照并上传 HuggingFace：`curl -X POST http://localhost:6433/collections/paper_knowledge_base/snapshots`，快照文件约 3-4 GB
+- [ ] [P1] 编写 `scripts/restore_qdrant.py`：下载快照 + 恢复到本地 Qdrant，一条命令完成
+- [ ] [P1] 上传预构建的 `bm25_index.pkl`（2 GB）到 HuggingFace，免去用户构建时间
+- [ ] [P2] 更新 README Quick Start：补充 docker-compose + 数据恢复步骤
+- [ ] [P2] 确认 Ollama 是放进 docker-compose 还是保持本地运行
 ---
 
 ## 建议执行规划（代码架构优先）

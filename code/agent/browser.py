@@ -353,7 +353,7 @@ class Browser:
                 # 2. Fetch Full Text (Async)
                 full_text = await self._fetch_full_text(paper)
                 if full_text:
-                    if idx < 5 and config.DEBUG:
+                    if idx < 5 and config.SAVE_CASE_STUDY_ARTIFACTS:
                         try:
                             os.makedirs("./case_study", exist_ok=True)
                             with open(f"./case_study/qid{idx}_browser_fulltext_iter{iteration_index}_sq{sq_id}_p{paper_idx}.txt", "w", encoding="utf-8") as f:
@@ -503,7 +503,7 @@ class Browser:
 
         data = parse_json_from_tag(response, tag_name) or {}
 
-        if idx < 5 and config.DEBUG:
+        if idx < 5 and config.SAVE_CASE_STUDY_ARTIFACTS:
             try:
                 case_study_dir = os.path.join(config.CASE_STUDY_OUTPUT_DIR, f"qid_{idx}", f"iter_{iteration}", "browser")
                 os.makedirs(case_study_dir, exist_ok=True)
