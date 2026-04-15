@@ -224,12 +224,18 @@ python code/eval.py \
 
 ### Managing Multiple Experiments
 
+There are now two intended config paths:
+
+- **Manual single run**: edit `code/config.py` directly and/or pass CLI flags to `python code/eval.py`
+- **Managed experiments**: edit `experiments.yaml` and use `scripts/exp/launcher.py`
+
 For running and tracking several experiments in parallel (e.g., comparing
 models or browser modes), use the experiment manager under `scripts/exp/`.
-It reads a single `experiments.yaml`, renders per-run configs, launches each
-eval as a detached background process, and provides a live dashboard.
+It reads a single `experiments.yaml`, renders per-run configs from the base
+`code/config.py`, launches each eval as a detached background process, and
+provides a live dashboard.
 
-**Manifest** (`experiments.yaml` at the project root):
+**Manifest** (`experiments.yaml` at the project root; legacy `code/configs/*.py` presets are now represented here as commented examples):
 
 ```yaml
 runs_dir: runs
@@ -362,6 +368,10 @@ The migration script copies `detailed_results.jsonl` from the old
 `state.json` so the next `launcher.py up` resumes from where you left off.
 The mapping table at the top of `scripts/exp/migrate.py` is project-specific
 and should be edited if your old directory names differ.
+
+Checked-in per-model Python presets under `code/configs/` are deprecated; keep
+manual one-off runs in `code/config.py`, and keep managed experiment examples in
+`experiments.yaml`.
 
 ## Project Structure
 

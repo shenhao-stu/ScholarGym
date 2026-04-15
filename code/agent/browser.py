@@ -33,6 +33,14 @@ class FetchError(Exception):
 
 logger = logging.getLogger(__name__)
 
+
+def _clip_text(text: str | None, limit: int) -> str:
+    text = (text or "").strip()
+    if len(text) <= limit:
+        return text
+    return text[: max(0, limit - 15)].rstrip() + " ...[truncated]"
+
+
 class Ar5ivParser:
     def __init__(self):
         self.ignore_tags = ['a', 'figure', 'center', 'caption', 'td', 'h1', 'h2', 'h3', 'h4', 'sup']
@@ -439,11 +447,19 @@ class Browser:
         """
         Step 2: Extract information from full text.
         """
+        max_full_text_chars = max(4000, config.CONTEXT_MAX_LENGTH_CHARS // 2)
+        clipped_full_text = _clip_text(full_text, max_full_text_chars)
+        if len(clipped_full_text) < len((full_text or "").strip()):
+            logger.info(
+                "[Browser] Truncated full text for extraction "
+                f"sq={sq_id} p={paper_idx} from {len((full_text or '').strip())} to {len(clipped_full_text)} chars"
+            )
+
         prompt = (
             BROWSER_EXTRACTION_SYSTEM_PROMPT
             + "\n\n"
             + BROWSER_EXTRACTION_USER_PROMPT.format(
-                full_text=full_text,
+                full_text=clipped_full_text,
                 task=task
             )
         )

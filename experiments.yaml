@@ -1,58 +1,161 @@
 # ScholarGym Experiment Manifest
 #
-# Usage:
+# This is the main entrypoint for managed experiments.
+# Edit `defaults` first, then add or copy entries under `experiments`.
+#
+# Most experiments only need these fields:
+#   - name          unique run id; also becomes runs/<name>/
+#   - model         model name passed to eval.py
+#   - is_local      true for local serving backends; false for remote APIs
+#   - group         second-level grouping in monitors, usually the model family
+#   - type          top-level grouping in monitors, e.g. main / ablation / debug
+#   - browser_mode  NONE / PRE_ENRICH / REFRESH / INCREMENTAL
+#
+# Common commands:
 #   python scripts/exp/launcher.py up                  # launch all
 #   python scripts/exp/launcher.py up --only name1     # launch one
 #   python scripts/exp/launcher.py down                # stop all running
 #   python scripts/exp/launcher.py status              # one-shot status
-#   python scripts/exp/dashboard.py                    # live TUI monitor
+#   python scripts/exp/dashboard.py                    # quick live monitor
+#   python scripts/exp/tui.py                          # interactive monitor
 #
-# `name` is the unique identifier; it becomes the directory under runs_dir.
-# `group` is the model family / second-level grouping in monitors.
-# `type` is the top-level grouping in monitors (e.g. main / ablation / debug).
-# Anything in `defaults` is overridable per-experiment.
+# Notes:
+#   - Anything in `defaults` can be overridden per experiment.
+#   - `env` is optional and is passed only to that experiment process.
+#   - Existing runs resume from their checkpoint and keep their existing runs/<name>/config.py.
+#   - Legacy checked-in presets from `code/configs/` have been folded into the
+#     commented examples below; copy one and adjust it instead of creating a new
+#     Python config module.
 
 runs_dir: runs
 
 defaults:
+  # Usually change this first.
   benchmark_jsonl: data/test_fast.jsonl
+
+  # Common evaluation settings.
   workflow: deep_research
   search_method: bm25
   max_iterations: 5
   results_per_query: 10
   prompt_type: complex
+
+  # Usually keep these defaults unless doing an ablation.
   enable_reasoning: true
   enable_structured_output: false
   browser_mode: NONE
 
 experiments:
+  # Local model example.
   - name: qwen3-8b-none
-    group: qwen3-8b
-    type: main
     model: qwen3-8b
     is_local: true
+    group: qwen3-8b
+    type: main
     browser_mode: NONE
 
+  # Same model, different browser mode.
   - name: qwen3-8b-refresh
-    group: qwen3-8b
-    type: main
     model: qwen3-8b
     is_local: true
+    group: qwen3-8b
+    type: main
     browser_mode: REFRESH
 
+  # Remote API example with per-experiment env overrides.
   - name: gpt54-none
-    group: gpt-5.4
-    type: main
     model: gpt-5.4
     is_local: false
+    group: gpt-5.4
+    type: main
     browser_mode: NONE
     env:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
-      OPENAI_BASE_URL: https://ohmyapi-2api.hf.space/v1
+      OPENAI_BASE_URL: https://your-openai-compatible-endpoint/v1
 
   - name: glm51-none
-    group: glm-5.1
-    type: main
     model: glm-5.1
     is_local: false
+    group: glm-5.1
+    type: main
     browser_mode: NONE
+
+  # ---------------------------------------------------------------------------
+  # Legacy preset examples migrated from code/configs/*.py.
+  # Copy one block, uncomment it, then adjust name/model/env as needed.
+  # ---------------------------------------------------------------------------
+
+  # - name: claude-sonnet46-none
+  #   model: claude-sonnet-4-6
+  #   is_local: false
+  #   group: claude-sonnet-4-6
+  #   type: example
+  #   browser_mode: NONE
+  #   enable_reasoning: false
+  #   enable_structured_output: false
+
+  # - name: gpt54-bench-none
+  #   model: gpt-5.4
+  #   is_local: false
+  #   group: gpt-5.4
+  #   type: example
+  #   browser_mode: NONE
+  #   benchmark_jsonl: data/scholargym_bench.jsonl
+  #   enable_reasoning: false
+  #   enable_structured_output: false
+
+  # - name: glm5-bench-none
+  #   model: glm-5
+  #   is_local: false
+  #   group: glm-5
+  #   type: example
+  #   browser_mode: NONE
+  #   benchmark_jsonl: data/scholargym_bench.jsonl
+  #   enable_reasoning: false
+  #   enable_structured_output: false
+
+  # - name: minimax-m25-none
+  #   model: MiniMax-M2.5
+  #   is_local: false
+  #   group: MiniMax-M2.5
+  #   type: example
+  #   browser_mode: NONE
+  #   benchmark_jsonl: data/scholargym_bench.jsonl
+  #   enable_reasoning: false
+  #   enable_structured_output: false
+
+  # - name: qwen35-9b-gpu228-none
+  #   model: qwen3.5-9b
+  #   is_local: true
+  #   group: qwen3.5-9b
+  #   type: example
+  #   browser_mode: NONE
+  #   benchmark_jsonl: data/scholargym_bench.jsonl
+  #   enable_reasoning: false
+  #   enable_structured_output: false
+  #   env:
+  #     OLLAMA_URL: http://your-local-ollama-host:30000
+
+  # - name: qwen35-27b-gpu228-none
+  #   model: qwen3.5-27b
+  #   is_local: true
+  #   group: qwen3.5-27b
+  #   type: example
+  #   browser_mode: NONE
+  #   benchmark_jsonl: data/scholargym_bench.jsonl
+  #   enable_reasoning: false
+  #   enable_structured_output: false
+  #   env:
+  #     OLLAMA_URL: http://your-local-ollama-host:30001
+
+  # - name: qwen3-8b-gpu210-none
+  #   model: qwen3-8b
+  #   is_local: true
+  #   group: qwen3-8b
+  #   type: example
+  #   browser_mode: NONE
+  #   benchmark_jsonl: data/scholargym_bench.jsonl
+  #   enable_reasoning: true
+  #   enable_structured_output: false
+  #   env:
+  #     OLLAMA_URL: http://your-local-ollama-host:8001

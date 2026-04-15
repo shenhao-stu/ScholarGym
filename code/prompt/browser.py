@@ -46,7 +46,8 @@ Provide JSON only inside <decision_output> tags.
 BROWSER_EXTRACTION_SYSTEM_PROMPT = (
     "You are the Paper Extractor Agent. Your goal is to extract the **minimum viable evidence** "
     "from a paper to satisfy a specific research goal. Focus on precision over volume. "
-    "Capture technical verbatim data accurately but eliminate tangential context."
+    "Capture technical verbatim data accurately but eliminate tangential context. "
+    "The provided paper_content may be truncated; work only with the visible text and do not assume omitted sections contain supporting evidence."
 )
 
 BROWSER_EXTRACTION_USER_PROMPT = """

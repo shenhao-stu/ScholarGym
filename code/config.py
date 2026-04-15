@@ -4,6 +4,12 @@
 # Edit the fields in "Required / commonly changed" first.
 # Most other fields can be left at their defaults.
 #
+# This file is the canonical base configuration for ScholarGym:
+#   - manual single runs can edit this file directly
+#   - eval.py loads this first, then applies `--config` / CLI overrides
+#   - scripts/exp/launcher.py uses it as the template for generated
+#     `runs/<name>/config.py` snapshots
+#
 # Flat module-level constants. Most entry points do `import config` and read
 # attributes directly. CLI args in eval.py override a subset of these.
 # =============================================================================

@@ -535,7 +535,7 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='Citation RAG Evaluation System')
-    parser.add_argument('--config', type=str, default=None, help='Path to config.py file (if specified, overrides default config)')
+    parser.add_argument('--config', type=str, default=None, help='Path to a config.py snapshot; typically a generated runs/<name>/config.py or an advanced custom config override')
     parser.add_argument('--paper_db', type=str, default=None, help='Path to paper database JSON file')
     parser.add_argument('--benchmark_jsonl', type=str, default=None, help='Path to benchmark JSONL file')
     parser.add_argument('--llm_model', type=str, default=None, help='LLM model for query generation')

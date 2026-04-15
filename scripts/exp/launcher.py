@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """ScholarGym experiment launcher.
 
-Reads experiments.yaml, renders a per-run config.py, launches eval.py as a
-detached background process (nohup-equivalent), and tracks state via state.json.
+Reads experiments.yaml (the source of truth for managed experiments), renders a
+per-run config.py snapshot from code/config.py + manifest overrides, launches
+eval.py as a detached background process (nohup-equivalent), and tracks state
+via state.json.
 
 Subcommands:
     up      Start (or resume) experiments. Idempotent: existing runs auto-resume.
