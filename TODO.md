@@ -73,10 +73,10 @@
 
 ## 实验 (`eval.py`, `config_*.py`)
 
-- [ ] [P1] qwen3.5-9b / qwen3.5-27b 主实验稳定性：selector 并发阶段出现 timeout / connection error，需先排查服务端并发与连接稳定性
-- [ ] [P1] qwen3.5-2b 主实验兼容性：planner 阶段未产出可解析 subqueries，workflow 早停，需单独抓原始输出定位格式问题
-- [ ] [P1] GLM-5.1 主实验可用性问题：多 key 轮换后仍触发 429 限流 / 余额不足；即使单次请求成功，也出现仅有 reasoning tokens、`content` 为空的兼容性现象，需先确认 API 返回形态并补充可用额度或更换 key 后再跑
-- [ ] [P2] GPT-5.4 主实验重跑策略：前几轮可正常推进，但后续出现间歇性 connection error，考虑降并发单独重跑
+- [x] [P1] qwen3.5-9b / qwen3.5-27b 主实验稳定性：selector 并发阶段出现 timeout / connection error，需先排查服务端并发与连接稳定性
+- [x] [P1] qwen3.5-2b 主实验兼容性：planner 阶段未产出可解析 subqueries，workflow 早停，需单独抓原始输出定位格式问题
+- [x] [P1] GLM-5.1 主实验可用性问题：多 key 轮换后仍触发 429 限流 / 余额不足；即使单次请求成功，也出现仅有 reasoning tokens、`content` 为空的兼容性现象，需先确认 API 返回形态并补充可用额度或更换 key 后再跑
+- [x] [P2] GPT-5.4 主实验重跑策略：前几轮可正常推进，但后续出现间歇性 connection error，考虑降并发单独重跑
 
 ## 论文 (`paper/neurips2026/`)
 

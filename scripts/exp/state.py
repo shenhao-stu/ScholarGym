@@ -128,6 +128,16 @@ def _tail_log(run_dir: Path, max_bytes: int = 64 * 1024) -> str:
         return ""
 
 
+def _latest_launch_tail(log_tail: str) -> str:
+    if not log_tail:
+        return ""
+    marker = "===== launched at "
+    idx = log_tail.rfind(marker)
+    if idx == -1:
+        return log_tail
+    return log_tail[idx:]
+
+
 def _detect_anomaly(log_tail: str) -> Optional[str]:
     if not log_tail:
         return None
@@ -252,8 +262,9 @@ def read_snapshot(run_dir: Path) -> RunSnapshot:
         eta = per_query * (total - done)
 
     log_tail = _tail_log(run_dir)
-    anomaly = _detect_anomaly(log_tail)
-    last_metric = _extract_last_metric(log_tail)
+    current_launch_tail = _latest_launch_tail(log_tail)
+    anomaly = _detect_anomaly(current_launch_tail)
+    last_metric = _extract_last_metric(current_launch_tail)
 
     # Status resolution
     results_done = (run_dir / "results.json").exists()

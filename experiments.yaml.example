@@ -1,7 +1,8 @@
 # ScholarGym Experiment Manifest
 #
 # This is the main entrypoint for managed experiments.
-# Edit `defaults` first, then add or copy entries under `experiments`.
+# Copy this file to `experiments.yaml` for local use, then edit `defaults`
+# and per-experiment `env` values as needed.
 #
 # Most experiments only need these fields:
 #   - name          unique run id; also becomes runs/<name>/
@@ -10,6 +11,14 @@
 #   - group         second-level grouping in monitors, usually the model family
 #   - type          top-level grouping in monitors, e.g. main / ablation / debug
 #   - browser_mode  NONE / PRE_ENRICH / REFRESH / INCREMENTAL
+#
+# Common optional overrides also supported in YAML include:
+#   - llm_gen_params / summary_gen_params
+#   - save_agent_traces / save_case_study_artifacts / verbose
+#   - case_study_output_dir / eval_base_dir
+#   - browser_max_tokens / max_pages_per_query / context_max_length_chars
+#   - enable_llm_filtering / llm_filtering_batch_size / enable_summarization
+#   - gt_rank_cutoff / top_k
 #
 # Common commands:
 #   python scripts/exp/launcher.py up                  # launch all
@@ -30,20 +39,23 @@
 runs_dir: runs
 
 defaults:
-  # Usually change this first.
+  # ICML main experiment defaults. Usually change benchmark_jsonl first.
   benchmark_jsonl: data/test_fast.jsonl
 
-  # Common evaluation settings.
+  # Main evaluation settings.
   workflow: deep_research
   search_method: bm25
   max_iterations: 5
   results_per_query: 10
   prompt_type: complex
 
-  # Usually keep these defaults unless doing an ablation.
-  enable_reasoning: true
+  # Main result mode: abstract-only assessment (browser disabled).
+  enable_reasoning: false
   enable_structured_output: false
   browser_mode: NONE
+
+  # Save case-study artifacts for the first 5 samples.
+  save_case_study_artifacts: true
 
 experiments:
   # Local model example.
@@ -53,6 +65,8 @@ experiments:
     group: qwen3-8b
     type: main
     browser_mode: NONE
+    env:
+      OLLAMA_URL: http://your-qwen3-8b-host:8001
 
   # Same model, different browser mode.
   - name: qwen3-8b-refresh
@@ -61,6 +75,68 @@ experiments:
     group: qwen3-8b
     type: main
     browser_mode: REFRESH
+    env:
+      OLLAMA_URL: http://your-qwen3-8b-host:8001
+
+  - name: qwen35-9b-none
+    model: qwen3.5-9b
+    is_local: true
+    group: qwen3.5
+    type: main
+    browser_mode: NONE
+    enable_reasoning: false
+    env:
+      OLLAMA_URL: http://your-qwen35-9b-host:30000
+
+  - name: qwen35-9b-refresh
+    model: qwen3.5-9b
+    is_local: true
+    group: qwen3.5
+    type: main
+    browser_mode: REFRESH
+    enable_reasoning: false
+    env:
+      OLLAMA_URL: http://your-qwen35-9b-host:30000
+
+  - name: qwen35-27b-none
+    model: qwen3.5-27b
+    is_local: true
+    group: qwen3.5
+    type: main
+    browser_mode: NONE
+    enable_reasoning: false
+    env:
+      OLLAMA_URL: http://your-qwen35-27b-host:30001
+
+  - name: qwen35-27b-refresh
+    model: qwen3.5-27b
+    is_local: true
+    group: qwen3.5
+    type: main
+    browser_mode: REFRESH
+    enable_reasoning: false
+    env:
+      OLLAMA_URL: http://your-qwen35-27b-host:30001
+
+  - name: qwen35-2b-none
+    model: qwen3.5-2b
+    is_local: true
+    group: qwen3.5
+    type: main
+    browser_mode: NONE
+    enable_reasoning: false
+    env:
+      OLLAMA_URL: http://your-qwen35-2b-host:30000
+
+  - name: qwen35-2b-refresh
+    model: qwen3.5-2b
+    is_local: true
+    group: qwen3.5
+    type: main
+    browser_mode: REFRESH
+    enable_reasoning: false
+    env:
+      OLLAMA_URL: http://your-qwen35-2b-host:30000
 
   # Remote API example with per-experiment env overrides.
   - name: gpt54-none
@@ -69,9 +145,21 @@ experiments:
     group: gpt-5.4
     type: main
     browser_mode: NONE
+    enable_reasoning: false
     env:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
-      OPENAI_BASE_URL: https://your-openai-compatible-endpoint/v1
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL}
+
+  - name: gpt54-refresh
+    model: gpt-5.4
+    is_local: false
+    group: gpt-5.4
+    type: main
+    browser_mode: REFRESH
+    enable_reasoning: false
+    env:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL}
 
   - name: glm51-none
     model: glm-5.1
@@ -79,6 +167,23 @@ experiments:
     group: glm-5.1
     type: main
     browser_mode: NONE
+    enable_reasoning: false
+    env:
+      ZHIPU_API_KEY: ${ZHIPU_API_KEY}
+      ZHIPU_API_KEYS: ${ZHIPU_API_KEYS}
+      ZHIPU_BASE_URL: ${ZHIPU_BASE_URL}
+
+  - name: glm51-refresh
+    model: glm-5.1
+    is_local: false
+    group: glm-5.1
+    type: main
+    browser_mode: REFRESH
+    enable_reasoning: false
+    env:
+      ZHIPU_API_KEY: ${ZHIPU_API_KEY}
+      ZHIPU_API_KEYS: ${ZHIPU_API_KEYS}
+      ZHIPU_BASE_URL: ${ZHIPU_BASE_URL}
 
   # ---------------------------------------------------------------------------
   # Legacy preset examples migrated from code/configs/*.py.

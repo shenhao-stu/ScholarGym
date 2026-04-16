@@ -29,3 +29,7 @@ data/fast_benchmark_data/
 docs/
 {alt})*
 {path})*
+experiments.yaml
+
+# Ignore all text artifacts
+*.txt
