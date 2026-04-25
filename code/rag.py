@@ -161,7 +161,7 @@ class CitationRAGSystem:
 
         self.qdrant_embeddings = OllamaEmbeddings(
             model=config.QDRANT_EMBEDDING_MODEL,
-            base_url=config.OLLAMA_URL,
+            base_url=getattr(config, "QDRANT_EMBEDDING_URL", None) or config.OLLAMA_URL,
         )
         self.qdrant_client = QdrantClient(url=config.QDRANT_URL)
 

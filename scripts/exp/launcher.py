@@ -35,6 +35,7 @@ if str(_HERE.parent) not in sys.path:
 
 from exp.state import (  # noqa: E402
     fmt_duration,
+    fmt_settings_badge,
     list_run_dirs,
     read_snapshot,
 )
@@ -82,8 +83,10 @@ YAML_TO_CONFIG = {
     "summary_is_local": ("SUMMARY_LLM_IS_LOCAL", lambda v: bool(v)),
     "summary_gen_params": ("SUMMARY_LLM_GEN_PARAMS", lambda v: dict(v)),
     "llm_gen_params": ("LLM_GEN_PARAMS", lambda v: dict(v)),
+    "llm_thinking_budget": ("LLM_THINKING_BUDGET", lambda v: int(v)),
     "qdrant_collection_name": ("QDRANT_COLLECTION_NAME", lambda v: v),
     "qdrant_embedding_model": ("QDRANT_EMBEDDING_MODEL", lambda v: v),
+    "qdrant_embedding_url": ("QDRANT_EMBEDDING_URL", lambda v: v),
     "vector_search_top_k": ("VECTOR_SEARCH_TOP_K", lambda v: int(v)),
     "bm25_search_top_k": ("BM25_SEARCH_TOP_K", lambda v: int(v)),
 }
@@ -120,6 +123,7 @@ CONFIG_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             ("DEFAULT_SEARCH_METHOD", "Default retrieval backend outside explicit eval overrides."),
             ("QDRANT_COLLECTION_NAME", "Qdrant collection name."),
             ("QDRANT_EMBEDDING_MODEL", "Embedding model used for Qdrant indexing/querying."),
+            ("QDRANT_EMBEDDING_URL", "Ollama endpoint for the embedding model; None = reuse OLLAMA_URL."),
             ("VECTOR_SEARCH_TOP_K", "Vector retrieval fanout before later filtering."),
             ("BM25_SEARCH_TOP_K", "BM25 retrieval fanout before later filtering."),
         ],
@@ -131,6 +135,7 @@ CONFIG_SECTIONS: list[tuple[str, list[tuple[str, str]]]] = [
             ("LLM_GEN_PARAMS", "Generation parameters for the main evaluator model."),
             ("BROWSER_MAX_TOKENS", "Max tokens when browser-related LLM calls are made."),
             ("ENABLE_REASONING", "Usually keep default unless comparing reasoning ablations."),
+            ("LLM_THINKING_BUDGET", "Two-pass thinking-budget cap in tokens; None = disabled."),
             ("ENABLE_STRUCTURED_OUTPUT", "Use structured outputs when the provider supports them."),
             ("SAVE_AGENT_TRACES", "Persist detailed agent traces for debugging."),
             ("PLANNER_ABLATION", "Enable planner ablation mode for experiments."),
@@ -310,6 +315,44 @@ def _is_pid_alive(pid: int | None) -> bool:
         return False
 
 
+def _derive_settings_summary(merged: dict) -> dict:
+    """Condense the 7 key experiment dimensions into a flat block for manifest/status display."""
+    bench = str(merged.get("benchmark_jsonl", "data/test_fast.jsonl"))
+    dataset = "hard" if "test_hard" in bench else ("fast" if "test_fast" in bench else Path(bench).stem)
+    search = merged.get("search_method", "bm25")
+    workflow = merged.get("workflow", "deep_research")
+    return {
+        "thinking": bool(merged.get("enable_reasoning", False)),
+        "browser": str(merged.get("browser_mode", "NONE")).upper(),
+        "dataset": dataset,
+        "search": search,
+        "iterations": int(merged.get("max_iterations", 5)),
+        "memory": not bool(merged.get("planner_ablation", False)),
+        "workflow": "direct" if workflow == "simple" else "deep_research",
+    }
+
+
+def _write_manifest(run_dir: Path, exp: dict, merged: dict) -> None:
+    """Write a manifest.yaml that captures both the raw entry and the derived settings.
+
+    The `settings` block is the authoritative snapshot of the 7 dimensions
+    (thinking/browser/dataset/search/iterations/memory/workflow), merged from
+    experiments.yaml `defaults` + per-experiment overrides. Consumers (status
+    display, monitors) should prefer `settings` over raw yaml keys.
+    """
+    manifest = {
+        "name": exp["name"],
+        "group": exp.get("group", "ungrouped"),
+        "type": exp.get("type", "default"),
+        "model": exp.get("model") or merged.get("model"),
+        "is_local": exp.get("is_local", merged.get("is_local", False)),
+        "settings": _derive_settings_summary(merged),
+        "env": exp.get("env") or {},
+        "raw": exp,
+    }
+    (run_dir / "manifest.yaml").write_text(yaml.safe_dump(manifest, sort_keys=False))
+
+
 def launch_one(
     exp: dict,
     defaults: dict,
@@ -345,7 +388,7 @@ def launch_one(
         print(f"[render] {name}: wrote {config_path}")
 
     # Always update manifest snapshot for transparency
-    (run_dir / "manifest.yaml").write_text(yaml.safe_dump(exp, sort_keys=False))
+    _write_manifest(run_dir, exp, merged)
 
     # Refuse to start a duplicate process
     state_file = run_dir / "state.json"
@@ -504,6 +547,11 @@ def cmd_restart(args: argparse.Namespace) -> None:
         launch_one(exp, defaults, runs_root, fresh=args.fresh)
 
 
+def _fmt_settings_badge(s: dict) -> str:
+    """Deprecated shim kept for backwards compatibility; use state.fmt_settings_badge."""
+    return fmt_settings_badge(s)
+
+
 def cmd_status(args: argparse.Namespace) -> None:
     manifest_path = Path(args.manifest)
     if manifest_path.exists():
@@ -519,8 +567,8 @@ def cmd_status(args: argparse.Namespace) -> None:
 
     # Group printing: type -> group -> run
     snaps.sort(key=lambda s: (s.exp_type, s.group, s.name))
-    print(f"{'NAME':24} {'TYPE':10} {'STATUS':10} {'PROGRESS':14} {'ELAPSED':>8} {'ETA':>8}  METRIC")
-    print("-" * 96)
+    print(f"{'NAME':24} {'STATUS':10} {'PROGRESS':14} {'ELAPSED':>8} {'ETA':>8}  {'SETTINGS':28}  METRIC")
+    print("-" * 120)
     last_type = None
     last_group = None
     for s in snaps:
@@ -538,7 +586,8 @@ def cmd_status(args: argparse.Namespace) -> None:
             metric = f"R={m['sel_r']:.2f} P={m['sel_p']:.2f}"
         if s.anomaly:
             metric = f"⚠ {s.anomaly} {metric}"
-        print(f"{s.name:24} {s.exp_type:10} {s.status:10} {prog:14} {fmt_duration(s.elapsed_sec):>8} {fmt_duration(s.eta_sec):>8}  {metric}")
+        badge = fmt_settings_badge(s.settings)
+        print(f"{s.name:24} {s.status:10} {prog:14} {fmt_duration(s.elapsed_sec):>8} {fmt_duration(s.eta_sec):>8}  {badge:28}  {metric}")
 
 
 def main() -> None:

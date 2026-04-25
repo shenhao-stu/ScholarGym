@@ -81,11 +81,23 @@ def parse_json_from_tag(response: str, tag: str) -> Optional[Dict]:
     content = content.strip()
     content = content.replace("```json", "").replace("```", "").strip()
 
-    try:
-        return json.loads(content)
-    except Exception as e:
-        logger.warning(f"Failed to parse JSON from response: {e}")
-        return None
+    for strict in (True, False):
+        # strict=False 放行 string 里未转义的换行/控制字符（Gemma-4 小模型爱犯）
+        try:
+            return json.loads(content, strict=strict)
+        except json.JSONDecodeError:
+            # "Extra data" 情况：qwen3.5-9b think 有时会在合法 JSON 后拖尾
+            # 第二段 JSON 或废话。用 raw_decode 只吃第一段合法 JSON。
+            try:
+                obj, _ = json.JSONDecoder(strict=strict).raw_decode(content)
+                return obj
+            except Exception:
+                continue
+        except Exception as e:
+            logger.warning(f"Failed to parse JSON from response: {e}")
+            return None
+    logger.warning(f"Failed to parse JSON from response (both strict modes failed)")
+    return None
 
 
 def parse_response_to_keys(response: str) -> List[str]:

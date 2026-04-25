@@ -31,6 +31,7 @@ if str(_HERE.parent) not in sys.path:
 from exp.state import (  # noqa: E402
     RunSnapshot,
     fmt_duration,
+    fmt_settings_badge,
     list_run_dirs,
     read_snapshot,
 )
@@ -72,7 +73,7 @@ def render_table(runs_root: Path, snaps: list[RunSnapshot]) -> Table:
         pad_edge=False,
     )
     table.add_column("Name", style="white", no_wrap=True)
-    table.add_column("Type", justify="center", width=10)
+    table.add_column("Settings", style="dim", width=30, overflow="fold")
     table.add_column("Status", justify="center", width=10)
     table.add_column("Progress", width=18)
     table.add_column("Done", justify="right", width=10)
@@ -131,7 +132,7 @@ def render_table(runs_root: Path, snaps: list[RunSnapshot]) -> Table:
 
                 table.add_row(
                     f"  {s.name}",
-                    s.exp_type,
+                    fmt_settings_badge(s.settings),
                     status_cell,
                     bar_text,
                     done_cell,

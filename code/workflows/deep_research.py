@@ -10,6 +10,9 @@ import asyncio
 import time
 from typing import List, Dict, Set, Optional, Any
 
+import httpx
+from openai import APIConnectionError, APIStatusError, APITimeoutError, RateLimitError
+
 from logger import get_logger
 from rag import CitationRAGSystem
 import config
@@ -20,6 +23,33 @@ from metrics import Timer, MetricsCalculator
 
 
 logger = get_logger(__name__, log_file='./log/deeprag.log')
+
+
+class QueryApiAborted(RuntimeError):
+    """Raised when transient API/network errors should abort the whole query.
+
+    Caught in eval.py's per-query try/except so the query is NOT written to
+    checkpoint — it will be retried on the next resume.
+    """
+    pass
+
+
+def _is_transient_api_error(exc: BaseException) -> bool:
+    """True only for transient errors worth retrying on a fresh attempt.
+
+    Excludes:
+      - HTTP 400 (server hard-rejects the request; retrying gives the same 400)
+      - LLM output issues (parse errors, AttributeError, etc. — model capability)
+    """
+    if isinstance(exc, (APIConnectionError, APITimeoutError, RateLimitError)):
+        return True
+    if isinstance(exc, (httpx.ConnectError, httpx.TimeoutException)):
+        return True
+    if isinstance(exc, APIStatusError) and exc.status_code in (429, 502, 503, 504):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code in (429, 502, 503, 504):
+        return True
+    return False
 
 class DeepResearchWorkflow:
     """
@@ -249,6 +279,10 @@ class DeepResearchWorkflow:
                     out = {}
                     for (sq_id, _), r in zip(papers_for_selection.items(), results):
                         if isinstance(r, Exception):
+                            if _is_transient_api_error(r):
+                                raise QueryApiAborted(
+                                    f"summarizer sq={sq_id}: {type(r).__name__}: {r}"
+                                )
                             logger.warning(f"[⚠️] Summarization task failed for sq={sq_id}: {type(r).__name__}: {r}")
                             continue
                         out[sq_id] = r
@@ -281,11 +315,15 @@ class DeepResearchWorkflow:
                 out = {}
                 for (sq_id, _), r in zip(papers_for_selection.items(), results):
                     if isinstance(r, Exception):
+                        if _is_transient_api_error(r):
+                            raise QueryApiAborted(
+                                f"selector sq={sq_id}: {type(r).__name__}: {r}"
+                            )
                         logger.warning(f"[⚠️] Selection task failed for sq={sq_id}: {type(r).__name__}: {r}")
                         continue
                     out[sq_id] = r
                 return out
-            
+
             # 5) Browser tool calls for unsure papers
             async def run_browsing():
                 tasks = [
@@ -305,6 +343,10 @@ class DeepResearchWorkflow:
                 results = await asyncio.gather(*tasks, return_exceptions=True)
                 for r in results:
                     if isinstance(r, Exception):
+                        if _is_transient_api_error(r):
+                            raise QueryApiAborted(
+                                f"browser: {type(r).__name__}: {r}"
+                            )
                         logger.warning(f"[⚠️] Browsing task failed: {type(r).__name__}: {r}")
 
             papers_for_browsing: Dict[int, List[Dict[str, Any]]] = {}

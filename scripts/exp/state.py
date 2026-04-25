@@ -43,6 +43,7 @@ class RunSnapshot:
     name: str
     group: str
     exp_type: str
+    model: str  # concrete model id, e.g. 'qwen3-8b' / 'claude-sonnet-4-6'
     status: str  # running | done | crashed | stopped | stalled | unknown
     pid: Optional[int]
     start_time: Optional[datetime]
@@ -54,6 +55,7 @@ class RunSnapshot:
     anomaly: Optional[str] = None  # short label e.g. "APIError"
     last_progress_at: Optional[datetime] = None
     run_dir: Path = field(default_factory=Path)
+    settings: dict = field(default_factory=dict)  # from manifest.yaml `settings` block
 
     @property
     def progress_ratio(self) -> float:
@@ -77,9 +79,19 @@ def _load_state(run_dir: Path) -> dict:
     if not state_file.exists():
         return {}
     try:
-        return json.loads(state_file.read_text())
+        st = state_file.stat()
+    except OSError:
+        return {}
+    key = str(state_file)
+    cached = _STATE_CACHE.get(key)
+    if cached is not None and cached[0] == st.st_mtime and cached[1] == st.st_size:
+        return cached[2]
+    try:
+        data = json.loads(state_file.read_text())
     except (json.JSONDecodeError, OSError):
         return {}
+    _STATE_CACHE[key] = (st.st_mtime, st.st_size, data)
+    return data
 
 
 def _load_manifest(run_dir: Path) -> dict:
@@ -87,10 +99,70 @@ def _load_manifest(run_dir: Path) -> dict:
     if not manifest_file.exists():
         return {}
     try:
+        st = manifest_file.stat()
+    except OSError:
+        return {}
+    key = str(manifest_file)
+    cached = _MANIFEST_CACHE.get(key)
+    if cached is not None and cached[0] == st.st_mtime and cached[1] == st.st_size:
+        return cached[2]
+    try:
         data = yaml.safe_load(manifest_file.read_text())
-        return data if isinstance(data, dict) else {}
+        data = data if isinstance(data, dict) else {}
     except Exception:
         return {}
+    _MANIFEST_CACHE[key] = (st.st_mtime, st.st_size, data)
+    return data
+
+
+# Per-file caches keyed by path → (mtime, size, parsed). mtime+size invalidation
+# avoids re-parsing state.json / manifest.yaml on every 5s refresh tick.
+_STATE_CACHE: dict[str, tuple[float, int, dict]] = {}
+_MANIFEST_CACHE: dict[str, tuple[float, int, dict]] = {}
+
+
+def _load_config_fallback_settings(run_dir: Path) -> dict:
+    """Fallback: derive the 7-dim settings from config.py if manifest lacks a `settings` block.
+
+    Used for legacy runs launched before the manifest schema was introduced.
+    """
+    config_file = run_dir / "config.py"
+    if not config_file.exists():
+        return {}
+    text = config_file.read_text(errors="replace")
+
+    def _grep(var: str) -> Optional[str]:
+        m = re.search(rf"^\s*{re.escape(var)}\s*=\s*(.+?)\s*$", text, re.MULTILINE)
+        return m.group(1) if m else None
+
+    def _as_bool(expr: Optional[str]) -> bool:
+        return bool(expr) and expr.strip().lower() in {"true", "1", "'true'", '"true"'}
+
+    def _as_int(expr: Optional[str], default: int) -> int:
+        if not expr:
+            return default
+        try:
+            return int(expr)
+        except ValueError:
+            return default
+
+    def _strip_quotes(expr: Optional[str], default: str) -> str:
+        if not expr:
+            return default
+        return expr.strip().strip("'\"")
+
+    bench = _strip_quotes(_grep("BENCHMARK_PATH"), "data/test_fast.jsonl")
+    dataset = "hard" if "test_hard" in bench else ("fast" if "test_fast" in bench else bench)
+    workflow_raw = _strip_quotes(_grep("EVAL_WORKFLOW"), "deep_research")
+    return {
+        "thinking": _as_bool(_grep("ENABLE_REASONING")),
+        "browser": _strip_quotes(_grep("BROWSER_MODE"), "NONE").upper(),
+        "dataset": dataset,
+        "search": _strip_quotes(_grep("EVAL_SEARCH_METHOD"), "bm25"),
+        "iterations": _as_int(_grep("EVAL_MAX_ITERATIONS"), 5),
+        "memory": not _as_bool(_grep("PLANNER_ABLATION")),
+        "workflow": "direct" if workflow_raw == "simple" else "deep_research",
+    }
 
 
 def _count_checkpoint(run_dir: Path) -> int:
@@ -98,10 +170,31 @@ def _count_checkpoint(run_dir: Path) -> int:
     if not cp.exists():
         return 0
     try:
-        with cp.open("rb") as f:
-            return sum(1 for _ in f)
+        st = cp.stat()
     except OSError:
         return 0
+    key = str(cp)
+    cached = _CHECKPOINT_CACHE.get(key)
+    if cached is not None and cached[0] == st.st_mtime and cached[1] == st.st_size:
+        return cached[2]
+    # File changed (or first read): do a fast buffered newline count.
+    try:
+        count = 0
+        with cp.open("rb") as f:
+            while True:
+                chunk = f.read(1 << 20)  # 1 MB
+                if not chunk:
+                    break
+                count += chunk.count(b"\n")
+    except OSError:
+        return 0
+    _CHECKPOINT_CACHE[key] = (st.st_mtime, st.st_size, count)
+    return count
+
+
+# Cache to avoid re-counting `detailed_results.jsonl` every refresh tick
+# when the file hasn't changed. Keyed by path; value is (mtime, size, count).
+_CHECKPOINT_CACHE: dict[str, tuple[float, int, int]] = {}
 
 
 def _checkpoint_mtime(run_dir: Path) -> Optional[datetime]:
@@ -119,13 +212,27 @@ def _tail_log(run_dir: Path, max_bytes: int = 64 * 1024) -> str:
     if not log.exists():
         return ""
     try:
-        size = log.stat().st_size
-        with log.open("rb") as f:
-            if size > max_bytes:
-                f.seek(-max_bytes, 2)
-            return f.read().decode("utf-8", errors="replace")
+        st = log.stat()
     except OSError:
         return ""
+    key = (str(log), max_bytes)
+    cached = _LOG_TAIL_CACHE.get(key)
+    if cached is not None and cached[0] == st.st_mtime and cached[1] == st.st_size:
+        return cached[2]
+    try:
+        with log.open("rb") as f:
+            if st.st_size > max_bytes:
+                f.seek(-max_bytes, 2)
+            data = f.read().decode("utf-8", errors="replace")
+    except OSError:
+        return ""
+    _LOG_TAIL_CACHE[key] = (st.st_mtime, st.st_size, data)
+    return data
+
+
+# Cache for `_tail_log` — reduces repeated 64KB-per-run reads every refresh
+# when the log hasn't changed. Bounded implicitly by one entry per run.
+_LOG_TAIL_CACHE: dict[tuple[str, int], tuple[float, int, str]] = {}
 
 
 def _latest_launch_tail(log_tail: str) -> str:
@@ -240,6 +347,7 @@ def read_snapshot(run_dir: Path) -> RunSnapshot:
     name = state.get("name", manifest.get("name", run_dir.name))
     group = state.get("group", manifest.get("group", "ungrouped"))
     exp_type = state.get("type", state.get("exp_type", manifest.get("type", "default")))
+    model = state.get("model") or manifest.get("model") or group
     pid = state.get("pid")
     total = int(state.get("total_queries", 0) or 0)
     declared_status = state.get("status", "unknown")
@@ -285,7 +393,13 @@ def read_snapshot(run_dir: Path) -> RunSnapshot:
         else:
             status = "running"
     elif declared_status == "running" and not pid_alive:
-        status = "crashed"
+        # Progress ≥95% but results.json absent → treat as effectively done
+        # (likely crashed only during final finalize step). Everything below
+        # that threshold is a real crash.
+        if total > 0 and done / total >= 0.95:
+            status = "done"
+        else:
+            status = "crashed"
     else:
         status = declared_status or "unknown"
 
@@ -293,6 +407,7 @@ def read_snapshot(run_dir: Path) -> RunSnapshot:
         name=name,
         group=group,
         exp_type=exp_type,
+        model=model,
         status=status,
         pid=pid,
         start_time=start_time,
@@ -304,6 +419,7 @@ def read_snapshot(run_dir: Path) -> RunSnapshot:
         anomaly=anomaly,
         last_progress_at=last_progress_at,
         run_dir=run_dir,
+        settings=manifest.get("settings") or _load_config_fallback_settings(run_dir),
     )
 
 
@@ -329,3 +445,33 @@ def fmt_duration(sec: Optional[float]) -> str:
     if m:
         return f"{m}m{s:02d}s"
     return f"{s}s"
+
+
+def fmt_settings_badge(s: dict) -> str:
+    """Render the 7-dim settings block as a compact ordered badge string.
+
+    Format: `{browser} [{dataset}] [think] [{search}] [iter{N}] [nomem] [direct]`
+    Default values are elided: dataset=fast, search=bm25, iterations=5,
+    memory=true, workflow=deep_research. `vector` is displayed as `dense`.
+    """
+    if not s:
+        return ""
+    parts = [str(s.get("browser", "?"))[:7].lower()]
+    dataset = s.get("dataset", "fast")
+    if dataset != "fast":
+        parts.append(dataset)
+    if s.get("thinking"):
+        parts.append("think")
+    search = s.get("search", "bm25")
+    if search != "bm25":
+        search_display = {"vector": "dense"}.get(search, search)
+        parts.append(search_display)
+    it = s.get("iterations", 5)
+    if it != 5:
+        parts.append(f"iter{it}")
+    if s.get("memory") is False:
+        parts.append("nomem")
+    workflow = s.get("workflow", "deep_research")
+    if workflow == "direct":
+        parts.append("direct")
+    return " ".join(parts)

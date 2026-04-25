@@ -13,6 +13,7 @@ from logger import get_logger
 from rag import CitationRAGSystem
 import config
 from workflows import DeepResearchWorkflow, SimpleWorkflow
+from workflows.deep_research import QueryApiAborted
 from utils import extract_ground_truth_arxiv_ids, CheckpointManager, calculate_retrieval_metrics, AgentTraceRecorder
 
 logger = get_logger(__name__, log_file='./log/eval.log')
@@ -420,6 +421,13 @@ class CitationEvaluator:
                         
             except (KeyboardInterrupt, SystemExit, MemoryError):
                 raise
+            except QueryApiAborted as e:
+                # Transient API/network failure — don't checkpoint; query will
+                # be retried on the next resume.
+                logger.warning(
+                    f"[🛑] Aborting query {idx} due to transient API error: {e}"
+                )
+                continue
             except Exception as e:
                 logger.warning(
                     f"[💢]Failed to evaluate query {query_data.get('query', 'N/A')[:30]}: {type(e).__name__}: {e}",

@@ -33,3 +33,28 @@ experiments.yaml
 
 # Ignore all text artifacts
 *.txt
+
+# iter25 experiment outputs (mirrors existing 'runs/' rule)
+runs_iter25/
+
+# Manual backups
+*.bak
+*.pre-think-bak
+*.bak-pre-merge
+
+# Private working notes
+conversation_export.md
+experiment_plan.md
+
+# Local-only experiment manifest (env vars, API keys baked in)
+experiments_iter25.yaml
+
+# Local-only benchmark variant
+data/superlong_bench_300_resume.jsonl
+
+# One-off probe / utility scripts (kept locally, not part of pipeline)
+scripts/check_*.py
+scripts/survey_*.py
+scripts/time_*.py
+scripts/verify_*.py
+scripts/exp/rename_runs.py

@@ -2,13 +2,14 @@
 """ScholarGym experiment TUI (textual-based, full-featured).
 
 Two-pane layout:
-    Left  — table of all runs grouped by type -> group
+    Left  — tree of all runs: exp_type → model → run leaf
     Right — top status/metric panel + bottom scrollable log panel
 
 Key bindings (shown in the footer):
-    Tab          switch focus between run table and log pane
-    j / ↓        next row (when table focused) / scroll down (when log focused)
-    k / ↑        previous row (when table focused) / scroll up (when log focused)
+    Tab          switch focus between run tree and log pane
+    j / ↓        next node (when tree focused) / scroll down (when log focused)
+    k / ↑        previous node (when tree focused) / scroll up (when log focused)
+    Enter        expand/collapse branch (when tree focused)
     PageDown/Up  scroll log pane
     End / Home   jump log pane to latest / top
     r            refresh now
@@ -39,12 +40,13 @@ from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.message import Message
 from textual.screen import ModalScreen
 from textual.widgets import (
-    DataTable,
     Footer,
     Header,
     Label,
     Static,
+    Tree,
 )
+from textual.widgets.tree import TreeNode
 
 _HERE = Path(__file__).resolve().parent
 if str(_HERE.parent) not in sys.path:
@@ -54,6 +56,7 @@ from exp.state import (  # noqa: E402
     RunSnapshot,
     extract_metric_history,
     fmt_duration,
+    fmt_settings_badge,
     list_run_dirs,
     read_log_tail_lines,
     read_snapshot,
@@ -228,7 +231,7 @@ class ExperimentTUI(App):
     #log-scroll {
         height: 1fr;
     }
-    DataTable {
+    Tree {
         height: 100%;
     }
     DetailPanel {
@@ -264,17 +267,23 @@ class ExperimentTUI(App):
         self.interval = interval
         self.manifest = manifest
         self.snaps: list[RunSnapshot] = []
-        # Map row key (as string) → snapshot index
-        self.row_to_snap: dict[str, int] = {}
+        # Map run name → TreeNode for quick cursor restore across refreshes.
+        self._leaf_nodes_by_name: dict[str, TreeNode] = {}
         self.detail_visible = True
         self._last_selected_run: Optional[str] = None
         self.focus_on_log = False
+        # After the first refresh, stop auto-expanding type nodes so the user's
+        # manual collapse choices are preserved.
+        self._first_refresh_done = False
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         with Horizontal(id="main"):
             with Vertical(id="table-pane"):
-                yield DataTable(id="run-table", cursor_type="row", zebra_stripes=True)
+                tree: Tree[dict] = Tree("runs", id="run-tree")
+                tree.show_root = False
+                tree.guide_depth = 3
+                yield tree
             with Vertical(id="detail-pane"):
                 with Vertical(id="detail-top"):
                     yield DetailPanel("Select a run on the left.", id="detail")
@@ -283,103 +292,235 @@ class ExperimentTUI(App):
         yield Footer()
 
     def on_mount(self) -> None:
-        table = self.query_one("#run-table", DataTable)
-        table.add_columns("Name", "Type", "Status", "Progress", "Done", "Elapsed", "ETA", "R/P")
-        table.focus()
+        tree = self.query_one("#run-tree", Tree)
+        tree.focus()
         self.refresh_data()
         self.set_interval(self.interval, self.refresh_data)
         self.title = f"ScholarGym TUI — {self.runs_dir}"
 
     # ---------------------- data refresh ----------------------
 
+    def _build_leaf_label(self, s: RunSnapshot):
+        """Render a run's status line as a Rich Text for a tree leaf."""
+        from rich.text import Text  # local import (matches existing pattern)
+
+        settings = s.settings or {}
+        search = str(settings.get("search", "bm25"))
+        browser = str(settings.get("browser", "NONE")).lower()
+        thinking = "think" if settings.get("thinking") else "nothink"
+        axis = f"{search}/{browser}/{thinking}"
+
+        glyph = STATUS_GLYPH.get(s.status, "?")
+        status_style = STATUS_STYLE.get(s.status, "white")
+
+        bar_w = 10
+        filled = int(round(s.progress_ratio * bar_w))
+        bar = "█" * filled + "░" * (bar_w - filled)
+        pct = f"{s.progress_ratio*100:4.0f}%"
+        done_str = f"{s.done_queries}/{s.total_queries}"
+        elapsed = fmt_duration(s.elapsed_sec) if s.elapsed_sec > 0 else "--"
+
+        metric_str = ""
+        metric_style = "dim"
+        if s.last_metric:
+            m = s.last_metric
+            metric_str = f"R={m['sel_r']:.2f} P={m['sel_p']:.2f}"
+        elif s.anomaly:
+            metric_str = f"⚠{s.anomaly}"
+            metric_style = "bold red"
+
+        text = Text()
+        text.append(f"{axis:<26}")
+        text.append(f"{glyph} {s.status:<8}", style=status_style)
+        text.append(f"  {bar} {pct}")
+        text.append(f"  {done_str:>11}  {elapsed:>7}")
+        if metric_str:
+            text.append(f"  {metric_str}", style=metric_style)
+        return text
+
+    def _build_branch_label(self, title: str, snaps: list[RunSnapshot]):
+        """Render a type/model branch label with an aggregate status pill."""
+        from rich.text import Text
+
+        counts: dict[str, int] = defaultdict(int)
+        for s in snaps:
+            counts[s.status] += 1
+
+        # Decide an aggregate style: crashed/stalled dominates, then running, then done.
+        if counts.get("crashed"):
+            pill_glyph = STATUS_GLYPH["crashed"]
+            pill_style = STATUS_STYLE["crashed"]
+        elif counts.get("stalled"):
+            pill_glyph = STATUS_GLYPH["stalled"]
+            pill_style = STATUS_STYLE["stalled"]
+        elif counts.get("running"):
+            pill_glyph = STATUS_GLYPH["running"]
+            pill_style = STATUS_STYLE["running"]
+        elif counts.get("done") and counts["done"] == len(snaps):
+            pill_glyph = STATUS_GLYPH["done"]
+            pill_style = STATUS_STYLE["done"]
+        else:
+            pill_glyph = "·"
+            pill_style = "dim"
+
+        # Compact summary like "2r 1✓ 1✗"
+        parts: list[str] = []
+        if counts.get("running"):
+            parts.append(f"{counts['running']}▶")
+        if counts.get("done"):
+            parts.append(f"{counts['done']}✓")
+        if counts.get("crashed"):
+            parts.append(f"{counts['crashed']}✗")
+        if counts.get("stalled"):
+            parts.append(f"{counts['stalled']}⧗")
+        if counts.get("stopped"):
+            parts.append(f"{counts['stopped']}⊘")
+        summary = " ".join(parts) if parts else f"{len(snaps)}"
+
+        text = Text()
+        text.append(f"{pill_glyph} ", style=pill_style)
+        text.append(f"{title}  ", style="bold")
+        text.append(f"[{summary}]", style="dim")
+        return text
+
+    def _collect_expanded_keys(self, tree: Tree) -> set[tuple]:
+        """Walk the tree and remember which branch nodes are currently expanded."""
+        expanded: set[tuple] = set()
+
+        def walk(node: TreeNode) -> None:
+            if node.data and isinstance(node.data, dict):
+                kind = node.data.get("kind")
+                key = node.data.get("key")
+                if kind in ("type", "model") and key and node.is_expanded:
+                    expanded.add(key)
+            for child in node.children:
+                walk(child)
+
+        walk(tree.root)
+        return expanded
+
+    def _selected_run_name(self, tree: Tree) -> Optional[str]:
+        cur = tree.cursor_node
+        if cur is None or not cur.data:
+            return None
+        if cur.data.get("kind") == "leaf":
+            return cur.data.get("name")
+        return None
+
     def refresh_data(self) -> None:
-        """Re-read all run dirs and rebuild the table. Preserve cursor."""
+        """Re-read all run dirs and rebuild the tree. Preserve expand / cursor / scroll."""
         self.snaps = [read_snapshot(d) for d in list_run_dirs(self.runs_dir)]
-        # Sort: by type then group then name
-        self.snaps.sort(key=lambda s: (s.exp_type, s.group, s.name))
 
-        table = self.query_one("#run-table", DataTable)
-        # Save cursor
-        prev_key: Optional[str] = None
-        if table.row_count and table.cursor_row is not None and 0 <= table.cursor_row < table.row_count:
-            try:
-                prev_key = table.coordinate_to_cell_key((table.cursor_row, 0)).row_key.value
-            except Exception:
-                prev_key = None
+        # Surface manifest-declared runs that have never been launched (no dir yet)
+        # as 'pending' placeholders, so they can be selected and `R`-restarted.
+        existing_names = {s.name for s in self.snaps}
+        try:
+            import yaml as _yaml
+            mdata = _yaml.safe_load(self.manifest.read_text()) or {}
+            for exp in (mdata.get("experiments") or []):
+                nm = exp.get("name")
+                if not nm or nm in existing_names:
+                    continue
+                self.snaps.append(RunSnapshot(
+                    name=nm,
+                    group=exp.get("group", "ungrouped"),
+                    exp_type=exp.get("type", "default"),
+                    model=exp.get("model", "?"),
+                    status="pending",
+                    pid=None,
+                    start_time=None,
+                    total_queries=0,
+                    done_queries=0,
+                    elapsed_sec=0.0,
+                    eta_sec=None,
+                    run_dir=self.runs_dir / nm,
+                    settings={},
+                ))
+        except Exception:
+            pass
 
-        table.clear(columns=False)
-        self.row_to_snap.clear()
+        self.snaps.sort(key=lambda s: (s.exp_type, s.model, s.name))
 
-        # Insert grouped rows: type -> group -> run
-        last_type = None
-        last_group = None
+        tree = self.query_one("#run-tree", Tree)
+
+        # Save state so rebuild doesn't yank the user's view.
+        expanded_keys = self._collect_expanded_keys(tree)
+        selected_name = self._selected_run_name(tree) or self._last_selected_run
+        prev_scroll_y = tree.scroll_y
+
+        tree.clear()
+        self._leaf_nodes_by_name.clear()
+
+        # Group: exp_type → model → [snaps]
+        grouped: dict[str, dict[str, list[tuple[int, RunSnapshot]]]] = defaultdict(
+            lambda: defaultdict(list)
+        )
         for i, s in enumerate(self.snaps):
-            if s.exp_type != last_type:
-                table.add_row(f"▼ {s.exp_type}", "", "", "", "", "", "", "", key=f"_type_{s.exp_type}")
-                last_type = s.exp_type
-                last_group = None
-            if s.group != last_group:
-                table.add_row(f"  ▸ {s.group}", "", "", "", "", "", "", "", key=f"_grp_{s.exp_type}_{s.group}")
-                last_group = s.group
-            row_key = f"snap_{i}"
-            self.row_to_snap[row_key] = i
+            grouped[s.exp_type][s.model].append((i, s))
 
-            style = STATUS_STYLE.get(s.status, "white")
-            glyph = STATUS_GLYPH.get(s.status, "?")
-            from rich.text import Text  # local import
-
-            status_cell = Text(f"{glyph} {s.status}", style=style)
-            bar_w = 12
-            filled = int(round(s.progress_ratio * bar_w))
-            bar = "█" * filled + "░" * (bar_w - filled)
-            progress_cell = f"{bar} {s.progress_ratio*100:5.1f}%"
-            done_cell = f"{s.done_queries}/{s.total_queries}"
-            elapsed_cell = fmt_duration(s.elapsed_sec) if s.elapsed_sec > 0 else "--"
-            eta_cell = fmt_duration(s.eta_sec)
-            metric_cell = ""
-            if s.last_metric:
-                m = s.last_metric
-                metric_cell = f"R={m['sel_r']:.2f} P={m['sel_p']:.2f}"
-            elif s.anomaly:
-                metric_cell = Text(f"⚠ {s.anomaly}", style="bold red")
-            table.add_row(
-                f"  {s.name}",
-                s.exp_type,
-                status_cell,
-                progress_cell,
-                done_cell,
-                elapsed_cell,
-                eta_cell,
-                metric_cell,
-                key=row_key,
+        first = not self._first_refresh_done
+        for exp_type in sorted(grouped.keys()):
+            type_snaps = [s for m in grouped[exp_type].values() for _, s in m]
+            type_key = ("type", exp_type)
+            expand_type = (type_key in expanded_keys) or first
+            type_node = tree.root.add(
+                self._build_branch_label(exp_type, type_snaps),
+                data={"kind": "type", "key": type_key},
+                expand=expand_type,
             )
+            for model in sorted(grouped[exp_type].keys()):
+                runs = grouped[exp_type][model]
+                model_snaps = [s for _, s in runs]
+                model_key = ("model", exp_type, model)
+                expand_model = model_key in expanded_keys
+                model_node = type_node.add(
+                    self._build_branch_label(model, model_snaps),
+                    data={"kind": "model", "key": model_key},
+                    expand=expand_model,
+                )
+                for idx, s in runs:
+                    leaf = model_node.add_leaf(
+                        self._build_leaf_label(s),
+                        data={"kind": "leaf", "snap_idx": idx, "name": s.name},
+                    )
+                    self._leaf_nodes_by_name[s.name] = leaf
 
-        # Try to restore cursor
-        if prev_key:
-            for r in range(table.row_count):
+        self._first_refresh_done = True
+
+        # Restore cursor to the same run if it still exists. Must be deferred
+        # until after Textual processes the tree rebuild, otherwise the new
+        # leaf's internal `_line` index is still unset and `select_node` would
+        # end up pointing at nothing (cursor snaps back to the root).
+        if selected_name and selected_name in self._leaf_nodes_by_name:
+            target = self._leaf_nodes_by_name[selected_name]
+
+            def _restore_cursor() -> None:
+                tree.select_node(target)
                 try:
-                    if table.coordinate_to_cell_key((r, 0)).row_key.value == prev_key:
-                        table.move_cursor(row=r)
-                        break
+                    tree.scroll_to(y=prev_scroll_y, animate=False)
                 except Exception:
                     pass
+
+            self.call_after_refresh(_restore_cursor)
+        else:
+            try:
+                tree.scroll_to(y=prev_scroll_y, animate=False)
+            except Exception:
+                pass
 
         self.update_detail()
 
     # ---------------------- selection / detail ----------------------
 
     def selected_snapshot(self) -> Optional[RunSnapshot]:
-        table = self.query_one("#run-table", DataTable)
-        if table.cursor_row is None or table.cursor_row >= table.row_count:
+        tree = self.query_one("#run-tree", Tree)
+        cur = tree.cursor_node
+        if cur is None or not cur.data:
             return None
-        try:
-            key = table.coordinate_to_cell_key((table.cursor_row, 0)).row_key.value
-        except Exception:
+        if cur.data.get("kind") != "leaf":
             return None
-        if not key or key.startswith("_grp_") or key.startswith("_type_"):
-            return None
-        idx = self.row_to_snap.get(key)
-        if idx is None:
+        idx = cur.data.get("snap_idx")
+        if idx is None or idx < 0 or idx >= len(self.snaps):
             return None
         return self.snaps[idx]
 
@@ -422,6 +563,7 @@ class ExperimentTUI(App):
 
         body = (
             f"[bold]{s.name}[/bold]   group=[cyan]{s.group}[/cyan]   type=[magenta]{s.exp_type}[/magenta]\n"
+            f"settings: [dim]{fmt_settings_badge(s.settings) or '-'}[/dim]\n"
             f"status: [{STATUS_STYLE.get(s.status, 'white')}]{s.status}[/]"
             f"   pid={s.pid or '-'}\n"
             f"start: {s.start_time.isoformat(timespec='seconds') if s.start_time else '-'}\n"
@@ -432,7 +574,7 @@ class ExperimentTUI(App):
             f"  sel R  [green]{sl_sel_r}[/green]\n"
             f"  sel P  [yellow]{sl_sel_p}[/yellow]\n"
             f"  ret R  [cyan]{sl_ret_r}[/cyan]\n"
-            f"\n[dim]Tab switches focus between table and log. j/k scroll the focused pane.[/dim]"
+            f"\n[dim]Tab switches focus between tree and log. j/k scroll the focused pane.[/dim]"
         )
         panel.update(body)
         log_panel.update(log_text)
@@ -450,36 +592,32 @@ class ExperimentTUI(App):
             self._log_scroll().focus()
             self.notify("focus: log", severity="information")
         else:
-            self.query_one("#run-table", DataTable).focus()
-            self.notify("focus: table", severity="information")
+            self.query_one("#run-tree", Tree).focus()
+            self.notify("focus: tree", severity="information")
 
     def on_log_scroll_focus_log(self, _: LogScroll.FocusLog) -> None:
         self.focus_on_log = True
 
-    def on_data_table_focus(self) -> None:
+    def on_tree_focus(self) -> None:
         self.focus_on_log = False
 
-    def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
-        table = self.query_one("#run-table", DataTable)
-        try:
-            key = table.coordinate_to_cell_key((event.cursor_row, 0)).row_key.value
-        except Exception:
-            key = None
-        if key and not key.startswith("_grp_") and not key.startswith("_type_"):
-            self._last_selected_run = None
+    def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
+        # Do NOT reset self._last_selected_run here. `update_detail` already
+        # decides whether to follow-tail the log based on whether the selected
+        # run name changed.
         self.update_detail()
 
     def action_context_down(self) -> None:
         if self.focus_on_log:
             self._log_scroll().scroll_relative(y=3, animate=False)
         else:
-            self.query_one("#run-table", DataTable).action_cursor_down()
+            self.query_one("#run-tree", Tree).action_cursor_down()
 
     def action_context_up(self) -> None:
         if self.focus_on_log:
             self._log_scroll().scroll_relative(y=-3, animate=False)
         else:
-            self.query_one("#run-table", DataTable).action_cursor_up()
+            self.query_one("#run-tree", Tree).action_cursor_up()
 
     def action_toggle_detail(self) -> None:
         pane = self.query_one("#detail-pane")

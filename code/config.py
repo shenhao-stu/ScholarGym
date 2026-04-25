@@ -73,6 +73,12 @@ QDRANT_COLLECTION_NAME = "paper_knowledge_base"
 # Embedding model used for Qdrant indexing/querying.
 QDRANT_EMBEDDING_MODEL = "qwen3-embedding:0.6b"
 
+# Ollama endpoint for the embedding model. Falls back to OLLAMA_URL when unset,
+# which is fine when the LLM endpoint also serves the embedding model. Vector
+# runs on split deployments (LLM on host A, embedding on host B) should override
+# this.
+QDRANT_EMBEDDING_URL = None
+
 # Vector retrieval fanout before later filtering.
 VECTOR_SEARCH_TOP_K = 10
 
@@ -100,6 +106,14 @@ BROWSER_MAX_TOKENS = 8192
 
 # Usually keep default unless comparing reasoning ablations.
 ENABLE_REASONING = True
+
+# Two-pass thinking-budget cap, in tokens. Currently only applies when
+# (is_local=True, enable_thinking=True, non-gemma). When set, Pass-1 generates
+# up to budget tokens; if the model hasn't finished reasoning, a Pass-2 call
+# injects '</think>' via continue_final_message to force the answer. Used to
+# work around Qwen3.5-27B's tendency to overthink. Leave as None (no cap) for
+# every other model so their behavior is unchanged.
+LLM_THINKING_BUDGET = None
 
 # Use structured outputs when the provider supports them.
 ENABLE_STRUCTURED_OUTPUT = False
