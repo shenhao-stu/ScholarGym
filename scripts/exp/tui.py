@@ -421,6 +421,8 @@ class ExperimentTUI(App):
                 nm = exp.get("name")
                 if not nm or nm in existing_names:
                     continue
+                if exp.get("disabled"):
+                    continue
                 self.snaps.append(RunSnapshot(
                     name=nm,
                     group=exp.get("group", "ungrouped"),

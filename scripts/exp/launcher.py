@@ -203,6 +203,30 @@ def load_manifest(path: Path) -> dict:
     if "experiments" not in manifest:
         raise ValueError(f"{path}: missing `experiments` key")
 
+    # Fan out shard entries: an experiment with `shards: N` (N>1) becomes N
+    # children named `<name>-shard{k}of{N}`. Each child carries _shard_idx /
+    # _num_shards as metadata; launch_one passes them as CLI flags to eval.py.
+    # `disabled: true` skips an experiment entirely (e.g. archived after merge).
+    expanded = []
+    for exp in manifest["experiments"]:
+        if exp.get("disabled"):
+            continue
+        n = int(exp.get("shards", 1) or 1)
+        if n <= 1:
+            expanded.append(exp)
+            continue
+        per_shard_env = exp.get("per_shard_env") or {}
+        for k in range(n):
+            child = {key: val for key, val in exp.items() if key not in ("shards", "per_shard_env")}
+            child["name"] = f"{exp['name']}-shard{k}of{n}"
+            child["_shard_idx"] = k
+            child["_num_shards"] = n
+            override = per_shard_env.get(k) or per_shard_env.get(str(k)) or {}
+            if override:
+                child["env"] = {**(child.get("env") or {}), **override}
+            expanded.append(child)
+    manifest["experiments"] = expanded
+
     # Validate uniqueness of names
     names = [e.get("name") for e in manifest["experiments"]]
     if len(names) != len(set(names)):
@@ -404,6 +428,10 @@ def launch_one(
     # Compute total queries from the benchmark referenced in the merged config
     bench_path = PROJECT_ROOT / merged.get("benchmark_jsonl", "data/scholargym_bench.jsonl")
     total_queries = count_benchmark_lines(bench_path)
+    num_shards = int(exp.get("_num_shards", 1) or 1)
+    shard_idx = int(exp.get("_shard_idx", 0) or 0)
+    if num_shards > 1:
+        total_queries = sum(1 for i in range(total_queries) if i % num_shards == shard_idx)
 
     # Build command
     cmd = [
@@ -412,6 +440,8 @@ def launch_one(
         "--config", str(config_path.relative_to(PROJECT_ROOT)),
         "--run_dir", str(run_dir.relative_to(PROJECT_ROOT)),
     ]
+    if num_shards > 1:
+        cmd += ["--shard_idx", str(shard_idx), "--num_shards", str(num_shards)]
 
     # Environment
     proc_env = os.environ.copy()

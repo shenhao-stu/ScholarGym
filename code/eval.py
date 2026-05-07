@@ -255,7 +255,9 @@ class CitationEvaluator:
         workflow: str = 'simple',
         top_k_list: List[int] = None,
         detailed_results_file: str = None,
-        enable_resume: bool = True
+        enable_resume: bool = True,
+        shard_idx: int = 0,
+        num_shards: int = 1,
     ) -> Dict:
         """
         Evaluate the entire benchmark dataset.
@@ -272,6 +274,14 @@ class CitationEvaluator:
         logger.info(f"Evaluating {len(benchmark_data)} queries with results_per_query={results_per_query} (using top_k={top_k_list} for simple workflow), max_iterations={max_iterations}")
         logger.info(f"Using prompt type: {self.prompt_type}\nUsing search method: {self.search_method}\nUsing workflow: {workflow}")
 
+        # Shard slicing: take stride (orig_idx % num_shards == shard_idx).
+        # Original idx is preserved for checkpoint compatibility and case_study artifacts.
+        if num_shards > 1:
+            indexed = [(i, q) for i, q in enumerate(benchmark_data) if i % num_shards == shard_idx]
+            logger.info(f"[🪓] Shard {shard_idx+1}/{num_shards}: handling {len(indexed)}/{len(benchmark_data)} queries (orig idx every {num_shards})")
+        else:
+            indexed = list(enumerate(benchmark_data))
+
         # Initialize checkpoint manager for resume support
         checkpoint_manager = None
         if enable_resume and detailed_results_file:
@@ -279,11 +289,13 @@ class CitationEvaluator:
             checkpoint_manager.load_checkpoint()
 
         results = {
-            'total_queries': len(benchmark_data),
+            'total_queries': len(indexed),
             'successful_queries': 0,
             'prompt_type': self.prompt_type,
             'search_method': self.search_method,
             'workflow': workflow,
+            'shard_idx': shard_idx,
+            'num_shards': num_shards,
             'detailed_results': []
         }
         
@@ -302,7 +314,8 @@ class CitationEvaluator:
                 max_iterations=max_iterations
             )
         
-        for idx, query_data in enumerate(tqdm(benchmark_data, desc="Evaluating queries")):
+        loop_desc = f"Evaluating queries (shard {shard_idx+1}/{num_shards})" if num_shards > 1 else "Evaluating queries"
+        for idx, query_data in tqdm(indexed, desc=loop_desc):
             # Skip already processed queries
             if checkpoint_manager and checkpoint_manager.is_processed(idx):
                 logger.info(f"[⏭️] Skipping already processed query {idx}")
@@ -560,6 +573,8 @@ def main():
     parser.add_argument('--results_per_query', type=int, default=None, help='Results per query for deep research workflow')
     parser.add_argument('--browser_mode', type=str, default=None, choices=['PRE_ENRICH', 'REFRESH', 'INCREMENTAL', 'NONE'], help='Browser mode for deep research workflow')
     parser.add_argument('--run_dir', type=str, default=None, help='Final output dir; when set, bypasses the auto-name scheme and writes directly to this directory')
+    parser.add_argument('--shard_idx', type=int, default=0, help='0-based shard index for data-parallel eval (default 0)')
+    parser.add_argument('--num_shards', type=int, default=1, help='Total number of shards. >1 enables sharding: this process handles queries with idx %% num_shards == shard_idx')
 
     args = parser.parse_args()
 
@@ -675,7 +690,9 @@ def main():
         workflow=config.EVAL_WORKFLOW,
         top_k_list=config.EVAL_TOP_K_VALUES,
         detailed_results_file=detailed_results_file,
-        enable_resume=True
+        enable_resume=True,
+        shard_idx=args.shard_idx,
+        num_shards=args.num_shards,
     )
 
     evaluator.print_summary(results)

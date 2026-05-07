@@ -102,7 +102,11 @@ def make_app(runs_dir: Path, auth_dep=None, manifests: list[Path] | None = None)
 
     def _load_all_manifests() -> tuple[list[dict], dict[str, Path]]:
         """Re-read manifests on every call so user edits are picked up live.
-        Returns (all_entries, name_to_manifest)."""
+        Returns (all_entries, name_to_manifest).
+
+        Also fans out `shards: N` into per-shard names so that the restart
+        endpoint can resolve shard run names like
+        ``gemma4-31b-think-none-shard0of4`` back to the source manifest."""
         all_entries: list[dict] = []
         name_to_mf: dict[str, Path] = {}
         import yaml as _yaml
@@ -113,10 +117,19 @@ def make_app(runs_dir: Path, auth_dep=None, manifests: list[Path] | None = None)
                     nm = exp.get("name")
                     if not nm:
                         continue
+                    if exp.get("disabled"):
+                        continue
                     if nm in name_to_mf:
                         continue  # first manifest wins
                     name_to_mf[nm] = mp
                     all_entries.append(exp)
+                    # Also register shard names (so restart endpoint can find them).
+                    n = int(exp.get("shards", 1) or 1)
+                    if n > 1:
+                        for k in range(n):
+                            shard_nm = f"{nm}-shard{k}of{n}"
+                            if shard_nm not in name_to_mf:
+                                name_to_mf[shard_nm] = mp
             except Exception:
                 continue
         return all_entries, name_to_mf
