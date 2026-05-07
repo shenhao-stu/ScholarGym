@@ -34,20 +34,28 @@ class QueryApiAborted(RuntimeError):
     pass
 
 
+_ABORT_QUERY_HTTP_CODES = (401, 403, 429, 500, 502, 503, 504)
+
+
 def _is_transient_api_error(exc: BaseException) -> bool:
-    """True only for transient errors worth retrying on a fresh attempt.
+    """True for errors that should abort the whole query (not silently drop a subquery).
+
+    Includes both genuinely transient (429/5xx, network) AND infrastructure failures
+    (401/403/500) that mean the model never produced a real response — silently
+    dropping the subquery would leave the eval with incomplete data and a wrongly
+    "successful" checkpoint entry. Aborting forces a fresh retry on the next resume.
 
     Excludes:
-      - HTTP 400 (server hard-rejects the request; retrying gives the same 400)
+      - HTTP 400 (server hard-rejects request; retry would give same 400)
       - LLM output issues (parse errors, AttributeError, etc. — model capability)
     """
     if isinstance(exc, (APIConnectionError, APITimeoutError, RateLimitError)):
         return True
     if isinstance(exc, (httpx.ConnectError, httpx.TimeoutException)):
         return True
-    if isinstance(exc, APIStatusError) and exc.status_code in (429, 502, 503, 504):
+    if isinstance(exc, APIStatusError) and exc.status_code in _ABORT_QUERY_HTTP_CODES:
         return True
-    if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code in (429, 502, 503, 504):
+    if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code in _ABORT_QUERY_HTTP_CODES:
         return True
     return False
 
