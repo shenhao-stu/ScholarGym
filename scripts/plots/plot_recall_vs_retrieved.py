@@ -106,9 +106,43 @@ def parse_extra_e1_retrieved_mean_fast(soup: BeautifulSoup) -> dict[str, float]:
 
 # ---------- Plot ----------------------------------------------------------------
 
-# 请确保在文件顶部区域添加以下导入（如果尚未导入）
-# import re
-# from matplotlib.lines import Line2D
+# Family-coherent palette: each base family shares a hue and varies in
+# lightness/saturation by capacity (small → light, large → dark).
+# Gemma → teal/green family; Qwen → blue family; GLM/GPT/Claude → distinct
+# accent colors. think/no-think variants share a color and are split by marker.
+BASE_COLORS: dict[str, str] = {
+    # Gemma family (teal → deep green)
+    "Gemma-4-E2B":       "#7FCDBB",  # teal-light
+    "Gemma-4-E4B":       "#41B6A6",  # teal-mid
+    "Gemma-4-31B":       "#1B7C76",  # teal-dark
+    # Qwen family (light blue → deep blue)
+    "Qwen3.5-9B":        "#9ECAE1",  # blue-light
+    "Qwen3.6-27B":       "#4292C6",  # blue-mid
+    "Qwen3.6-35B-A3B":   "#08519C",  # blue-dark
+    # Single-model families (distinct accents)
+    "GLM-5.1":           "#DC0000",  # red
+    "GPT-5.4":           "#ff7f0e",  # orange
+    "Claude-Sonnet-4.6": "#7E6148",  # brown
+}
+
+
+def _draw_axis_break_marks(ax) -> None:
+    """Draw // hash marks on the x and y spines near (0,0) to flag a non-zero axis start."""
+    h = 0.012     # half-length of each diagonal (axes-fraction coords)
+    sep = 0.022   # spacing between the two parallel slashes
+    x_at = 0.018  # where on the bottom spine the x-axis break sits
+    y_at = 0.04   # where on the left spine the y-axis break sits
+    kwargs = dict(
+        transform=ax.transAxes, color="k", clip_on=False,
+        linewidth=1.1, solid_capstyle="butt", zorder=10,
+    )
+    # x-axis break (//, lying on bottom spine)
+    ax.plot([x_at - h, x_at + h], [-h, +h], **kwargs)
+    ax.plot([x_at - h + sep, x_at + h + sep], [-h, +h], **kwargs)
+    # y-axis break (//, lying on left spine)
+    ax.plot([-h, +h], [y_at - h, y_at + h], **kwargs)
+    ax.plot([-h, +h], [y_at - h + sep, y_at + h + sep], **kwargs)
+
 
 def plot_scatter(rows, out_dir: Path, draw_labels: bool = False) -> None:
     from matplotlib.lines import Line2D  # 局部导入以防顶部漏加
@@ -116,14 +150,20 @@ def plot_scatter(rows, out_dir: Path, draw_labels: bool = False) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     fig, ax = plt.subplots(figsize=(8.5, 6.0))
 
-    # 1. 颜色按 base model 名分组（同名模型的 think/no-think 共享颜色，靠 marker 区分）
+    # 1. 颜色按 base model 名分组
     for r in rows:
         r["is_think"] = "†" in r["model"]
         r["base"] = r["model"].replace("†", "").strip()
 
     unique_bases = sorted({r["base"] for r in rows})
-    cmap = plt.get_cmap("tab10" if len(unique_bases) <= 10 else "tab20")
-    color_map = {base: cmap(i % cmap.N) for i, base in enumerate(unique_bases)}
+    fallback = plt.get_cmap("tab10")
+    color_map = {
+        base: BASE_COLORS.get(base, fallback(i % fallback.N))
+        for i, base in enumerate(unique_bases)
+    }
+    missing = [b for b in unique_bases if b not in BASE_COLORS]
+    if missing:
+        print(f"WARN: no palette entry for: {missing} — using tab10 fallback")
 
     # 2. 绘制散点
     for r in rows:
@@ -155,9 +195,20 @@ def plot_scatter(rows, out_dir: Path, draw_labels: bool = False) -> None:
                 zorder=4,
             )
 
-    # 3. 图例：每个模型单独一项（颜色按 base model、形状按是否 think）
+    # 3. 图例：每个模型单独一项；按 base model 分栏，think/no-think 配对相邻
+    # 3 列布局：Gemma 一列、Qwen 一列、Others（GLM/GPT/Claude）一列
+    legend_order = [
+        "Gemma-4-E2B", "Gemma-4-E4B", "Gemma-4-31B",
+        "Qwen3.5-9B", "Qwen3.6-27B", "Qwen3.6-35B-A3B",
+        "GLM-5.1", "GPT-5.4", "Claude-Sonnet-4.6",
+    ]
+
+    def _sort_key(r):
+        idx = legend_order.index(r["base"]) if r["base"] in legend_order else len(legend_order)
+        return (idx, r["is_think"])  # no-think (False) 排在 think (True) 前
+
     legend_elements = []
-    for r in rows:
+    for r in sorted(rows, key=_sort_key):
         legend_elements.append(
             Line2D(
                 [0], [0],
@@ -166,7 +217,7 @@ def plot_scatter(rows, out_dir: Path, draw_labels: bool = False) -> None:
                 markerfacecolor=color_map[r["base"]],
                 markeredgecolor="black",
                 markeredgewidth=0.5,
-                markersize=7,
+                markersize=9,
                 label=r["model"],
             )
         )
@@ -174,18 +225,21 @@ def plot_scatter(rows, out_dir: Path, draw_labels: bool = False) -> None:
     ax.legend(
         handles=legend_elements,
         loc="upper left",
-        fontsize=7,
+        fontsize=9,
         framealpha=0.9,
-        ncols=2,
-        handletextpad=0.4,
-        columnspacing=0.8,
-        labelspacing=0.3,
+        ncols=3,
+        handletextpad=0.5,
+        columnspacing=1.2,
+        labelspacing=0.4,
     )
 
     ax.set_xlabel("Avg. Retrieved per iteration (Test-Fast)")
     ax.set_ylabel("Retrieval Recall (Test-Fast, iter 5)")
     ax.set_title("Recall vs. Retrieval Breadth across Models")
     ax.grid(True, linestyle="--", alpha=0.4, zorder=1)
+
+    # 两个轴都不是从 0 开始，画一组 // 断口标记提示读者
+    _draw_axis_break_marks(ax)
 
     fig.tight_layout()
     pdf = out_dir / "recall_vs_retrieved.pdf"

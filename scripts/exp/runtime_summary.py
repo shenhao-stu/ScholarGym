@@ -40,9 +40,16 @@ from typing import Iterable, Optional
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ROOTS = ["runs", "runs_iter25"]
+DEFAULT_MANIFESTS = ["experiments.yaml", "experiments_iter25.yaml"]
 
 LAUNCH_RE = re.compile(r"^===== launched at (\S+) =====")
 TS_RE = re.compile(r"(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2})")
+SHARD_SUFFIX_RE = re.compile(r"-?shard\d+of\d+$")
+
+
+def _experiment_slug(name: str) -> str:
+    """Strip a `-shardKofN` suffix so all shards of one experiment share a slug."""
+    return SHARD_SUFFIX_RE.sub("", name).rstrip("-_")
 
 
 @dataclass
@@ -354,6 +361,231 @@ def print_aggregate(title: str, rows: list[tuple[str, dict]]) -> None:
     )
 
 
+def _load_manifest_index(manifest_paths: list[Path]) -> tuple[dict[str, str], set[str]]:
+    """Return (slug → 'active'/'disabled', set of declared models).
+
+    'active' wins over 'disabled' if a slug appears in both manifests with
+    different statuses.
+    """
+    try:
+        import yaml
+    except ImportError:
+        return {}, set()
+    declared: dict[str, str] = {}
+    models: set[str] = set()
+    for p in manifest_paths:
+        if not p.exists():
+            continue
+        try:
+            data = yaml.safe_load(p.read_text()) or {}
+        except Exception:
+            continue
+        for e in data.get("experiments") or []:
+            n = e.get("name")
+            if not n:
+                continue
+            if e.get("model"):
+                models.add(e["model"])
+            status = "disabled" if e.get("disabled") else "active"
+            cur = declared.get(n)
+            if cur != "active":
+                declared[n] = status
+    return declared, models
+
+
+def _classify(slug: str, model: str, declared: dict[str, str], declared_models: set[str]) -> str:
+    if slug in declared:
+        return declared[slug]
+    if model and model not in declared_models:
+        return "stale_model"
+    return "stale_run"
+
+
+def _aggregate_experiments(infos: list[RunInfo]) -> dict[tuple[str, str], dict]:
+    """Group by (exp_type, slug); sum log_wall/launches across shards.
+
+    For each (type, slug) group:
+      * log_wall_sec / launches / n_runs: summed across all dirs (shards run
+        in parallel on separate GPUs, so the sum is the GPU-hour cost; the
+        max is the wall-clock latency. We report sum here.)
+      * queries: max across the group, since the merged dir already reports
+        the union and shards individually report disjoint slices.
+      * model: taken from any member (consistent within a slug).
+    """
+    groups: dict[tuple[str, str], dict] = {}
+    for info in infos:
+        slug = _experiment_slug(info.name)
+        key = (info.exp_type, slug)
+        g = groups.setdefault(key, {
+            "type": info.exp_type,
+            "slug": slug,
+            "model": info.model,
+            "n_runs": 0,
+            "n_shards": 0,
+            "queries": 0,
+            "launches": 0,
+            "log_wall_sec": 0.0,
+            "log_wall_max_sec": 0.0,
+            "settings": info.settings,
+        })
+        g["n_runs"] += 1
+        if SHARD_SUFFIX_RE.search(info.name):
+            g["n_shards"] += 1
+        g["queries"] = max(g["queries"], info.done_queries)
+        g["launches"] += info.n_launches
+        g["log_wall_sec"] += info.log_wall_sec
+        g["log_wall_max_sec"] = max(g["log_wall_max_sec"], info.log_wall_sec)
+    return groups
+
+
+def write_json(
+    out_path: Path,
+    infos: list[RunInfo],
+    manifest_paths: Optional[list[Path]] = None,
+) -> None:
+    """Emit per-model, per-(type, model), and per-experiment log_wall aggregates.
+
+    If `manifest_paths` are provided, each per_experiment entry is tagged with
+    a `classification` field (active / disabled / stale_run / stale_model)
+    and a `by_classification` rollup is included at the top level.
+    """
+
+    def _bucket() -> dict:
+        return {
+            "n_runs": 0,
+            "queries": 0,
+            "launches": 0,
+            "log_wall_sec": 0.0,
+        }
+
+    per_model: dict[str, dict] = defaultdict(_bucket)
+    per_type_model: dict[str, dict[str, dict]] = defaultdict(
+        lambda: defaultdict(_bucket)
+    )
+    total = _bucket()
+
+    for info in infos:
+        for b in (per_model[info.model], per_type_model[info.exp_type][info.model], total):
+            b["n_runs"] += 1
+            b["queries"] += info.done_queries
+            b["launches"] += info.n_launches
+            b["log_wall_sec"] += info.log_wall_sec
+
+    def _finalize(b: dict) -> dict:
+        return {
+            "n_runs": b["n_runs"],
+            "queries": b["queries"],
+            "launches": b["launches"],
+            "log_wall_sec": round(b["log_wall_sec"], 2),
+            "log_wall_hours": round(b["log_wall_sec"] / 3600.0, 3),
+            "log_wall_human": fmt_dur(b["log_wall_sec"]),
+        }
+
+    experiments = _aggregate_experiments(infos)
+
+    declared, declared_models = ({}, set())
+    if manifest_paths:
+        declared, declared_models = _load_manifest_index(manifest_paths)
+
+    def _finalize_exp(g: dict, cls: Optional[str]) -> dict:
+        out = {
+            "type": g["type"],
+            "model": g["model"],
+            "n_runs": g["n_runs"],
+            "n_shards": g["n_shards"],
+            "queries": g["queries"],
+            "launches": g["launches"],
+            "log_wall_sec": round(g["log_wall_sec"], 2),
+            "log_wall_hours": round(g["log_wall_sec"] / 3600.0, 3),
+            "log_wall_human": fmt_dur(g["log_wall_sec"]),
+            "log_wall_max_sec": round(g["log_wall_max_sec"], 2),
+            "log_wall_max_human": fmt_dur(g["log_wall_max_sec"]),
+            "settings": g["settings"],
+        }
+        if cls is not None:
+            out["classification"] = cls
+        return out
+
+    sorted_exps = sorted(
+        experiments.items(), key=lambda kv: -kv[1]["log_wall_sec"]
+    )
+    per_experiment_payload: dict[str, dict] = {}
+    by_classification: dict[str, dict] = defaultdict(
+        lambda: {"n_experiments": 0, "queries": 0, "launches": 0, "log_wall_sec": 0.0}
+    )
+    for (t, slug), g in sorted_exps:
+        cls = _classify(slug, g["model"], declared, declared_models) if declared else None
+        per_experiment_payload[f"{t}/{slug}"] = _finalize_exp(g, cls)
+        if cls is not None:
+            b = by_classification[cls]
+            b["n_experiments"] += 1
+            b["queries"] += g["queries"]
+            b["launches"] += g["launches"]
+            b["log_wall_sec"] += g["log_wall_sec"]
+
+    payload = {
+        "total": _finalize(total),
+        "per_model": {
+            m: _finalize(b)
+            for m, b in sorted(per_model.items(), key=lambda kv: -kv[1]["log_wall_sec"])
+        },
+        "per_type_model": {
+            t: {m: _finalize(b) for m, b in sorted(models.items())}
+            for t, models in sorted(per_type_model.items())
+        },
+        "per_experiment": per_experiment_payload,
+    }
+    if by_classification:
+        payload["by_classification"] = {
+            cls: {
+                "n_experiments": b["n_experiments"],
+                "queries": b["queries"],
+                "launches": b["launches"],
+                "log_wall_sec": round(b["log_wall_sec"], 2),
+                "log_wall_hours": round(b["log_wall_sec"] / 3600.0, 3),
+                "log_wall_human": fmt_dur(b["log_wall_sec"]),
+            }
+            for cls, b in sorted(
+                by_classification.items(),
+                key=lambda kv: ("active", "disabled", "stale_run", "stale_model").index(kv[0])
+                    if kv[0] in ("active", "disabled", "stale_run", "stale_model") else 99,
+            )
+        }
+        payload["manifests"] = [str(p) for p in manifest_paths]
+
+    out_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
+
+
+def print_per_experiment(infos: list[RunInfo]) -> None:
+    """Print a per-experiment table (shards merged into one row by slug)."""
+    groups = _aggregate_experiments(infos)
+    print()
+    print("=" * 130)
+    print("Per-experiment runtime (shards summed by slug; queries=max across shards)")
+    print("=" * 130)
+    header = (
+        f"{'experiment':<45} {'type':<22} {'model':<22} "
+        f"{'shards':>6} {'queries':>8} {'launches':>9} {'log_wall':>10} {'wall_max':>9}"
+    )
+    print(header)
+    print("-" * len(header))
+    tot_wall = 0.0
+    for (_t, _slug), g in sorted(
+        groups.items(), key=lambda kv: -kv[1]["log_wall_sec"]
+    ):
+        print(
+            f"{g['slug']:<45.45} {g['type']:<22.22} {g['model']:<22.22} "
+            f"{g['n_shards']:>6} {g['queries']:>8} {g['launches']:>9} "
+            f"{fmt_dur(g['log_wall_sec']):>10} {fmt_dur(g['log_wall_max_sec']):>9}"
+        )
+        tot_wall += g["log_wall_sec"]
+    print("-" * len(header))
+    print(
+        f"{'TOTAL':<45} {'':<22} {'':<22} {'':>6} {'':>8} {'':>9} "
+        f"{fmt_dur(tot_wall):>10} {'':>9}"
+    )
+
+
 def write_csv(out_path: Path, infos: list[RunInfo]) -> None:
     cols = [
         "name", "exp_type", "model", "group", "total_queries", "done_queries",
@@ -390,7 +622,21 @@ def main() -> None:
         "--no-per-run", action="store_true",
         help="Skip the per-run table; only print the aggregate.",
     )
+    parser.add_argument(
+        "--per-experiment", action="store_true",
+        help="Print a per-experiment table (shards summed by slug).",
+    )
     parser.add_argument("--csv", type=Path, help="Write per-run rows to CSV.")
+    parser.add_argument(
+        "--json", type=Path, dest="json_out",
+        help="Write per-model and per-(type, model) log_wall aggregates as JSON.",
+    )
+    parser.add_argument(
+        "--manifest", action="append", default=None,
+        help="Manifest YAML path; can repeat. When set, JSON tags each "
+             "experiment with active / disabled / stale_run / stale_model "
+             f"and adds a `by_classification` block. Default: {DEFAULT_MANIFESTS}",
+    )
     parser.add_argument(
         "--include-archived-dups", action="store_true",
         help="Include _postshardprep_/_pre_shard_ archive snapshots that "
@@ -406,6 +652,9 @@ def main() -> None:
 
     if not args.no_per_run:
         print_per_run(infos)
+
+    if args.per_experiment:
+        print_per_experiment(infos)
 
     key_fns = {
         "type": lambda i: i.exp_type,
@@ -425,6 +674,13 @@ def main() -> None:
     if args.csv:
         write_csv(args.csv, infos)
         print(f"\nCSV written: {args.csv}")
+
+    if args.json_out:
+        manifest_paths = [
+            PROJECT_ROOT / m for m in (args.manifest or DEFAULT_MANIFESTS)
+        ]
+        write_json(args.json_out, infos, manifest_paths=manifest_paths)
+        print(f"JSON written: {args.json_out}")
 
 
 if __name__ == "__main__":
